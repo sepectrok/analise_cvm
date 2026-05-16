@@ -1,0 +1,118 @@
+"""Página 7 — Outliers & Insights"""
+
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import numpy as np
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+
+st.set_page_config(page_title="Outliers & Insights | FIDC Analytics", page_icon="🔦", layout="wide")
+
+from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
+from components.metrics_cards import page_header, insight_card
+from components.charts import heatmap_corr, scatter_two_taxas, PALETTE, _base_layout
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
+from utils.formatters import fmt_pct
+from utils.insights import generate_insights, detect_outliers_iqr
+
+load_css()
+df_full = build_df_fidc()
+filters = render_sidebar(df_full)
+df = apply_sidebar_filters(df_full, filters)
+
+page_header("🔦", "Outliers & Insights",
+            "Detecção automática de anomalias e insights de mercado")
+
+# ── Auto Insights ─────────────────────────────────────────────────────────────
+st.markdown('<div class="section-label">Insights Automáticos de Mercado</div>', unsafe_allow_html=True)
+insights = generate_insights(df)
+for ins in insights:
+    st.markdown(insight_card(ins["icon"], ins["title"], ins["text"], ins["type"]),
+                unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ── Outlier Detection ──────────────────────────────────────────────────────────
+st.markdown('<div class="section-label">Detecção de Outliers por Taxa</div>', unsafe_allow_html=True)
+
+taxa_cols_avail = [c for c in TAXA_COLS if c in df.columns and df[c].notna().sum() >= 10]
+col_sel = st.selectbox("Tipo de Taxa", taxa_cols_avail,
+                        format_func=lambda c: TAXA_LABELS.get(c, c), key="out_sel")
+
+s = df[col_sel].dropna()
+mask_outlier = detect_outliers_iqr(s)
+outliers = df.loc[s.index[mask_outlier]].copy()
+
+col_a, col_b = st.columns([1.6, 1])
+
+with col_a:
+    # Strip plot
+    fig = go.Figure()
+    # Normal points
+    normal = df.loc[s.index[~mask_outlier]]
+    fig.add_trace(go.Box(
+        y=df[col_sel].dropna(),
+        name="Distribuição",
+        marker_color=PALETTE["blue"],
+        boxmean="sd",
+        line_width=1.5,
+    ))
+    fig.update_layout(**_base_layout(f"Distribuição com Outliers — {TAXA_LABELS.get(col_sel,col_sel)}", 420))
+    fig.update_yaxes(title_text="% a.a.")
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_b:
+    q1 = s.quantile(0.25)
+    q3 = s.quantile(0.75)
+    iqr = q3 - q1
+    st.markdown(f"""
+    <div style="background:var(--bg-card); border:1px solid var(--border);
+                border-radius:var(--radius); padding:20px 22px; margin-bottom:12px;">
+        <div class="kpi-label">Parâmetros IQR</div>
+        <div class="compare-row"><span class="cr-label">Q1 (P25)</span><span class="cr-value">{fmt_pct(q1)}</span></div>
+        <div class="compare-row"><span class="cr-label">Q3 (P75)</span><span class="cr-value">{fmt_pct(q3)}</span></div>
+        <div class="compare-row"><span class="cr-label">IQR</span><span class="cr-value">{fmt_pct(iqr)}</span></div>
+        <div class="compare-row"><span class="cr-label">Limite Inferior</span><span class="cr-value">{fmt_pct(q1 - 1.5*iqr)}</span></div>
+        <div class="compare-row"><span class="cr-label">Limite Superior</span><span class="cr-value">{fmt_pct(q3 + 1.5*iqr)}</span></div>
+        <div class="compare-row"><span class="cr-label">Outliers</span>
+            <span class="cr-value" style="color:var(--danger)">{len(outliers)} fundos</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("---")
+
+# ── Outlier table ──────────────────────────────────────────────────────────────
+if not outliers.empty:
+    st.markdown(f'<div class="section-label">Fundos Outliers em {TAXA_LABELS.get(col_sel,col_sel)}</div>',
+                unsafe_allow_html=True)
+    disp_cols = ["nome_curto", "foco_atuacao", "administrador", col_sel]
+    disp_cols = [c for c in disp_cols if c in outliers.columns]
+    st.dataframe(
+        outliers[disp_cols].rename(columns={
+            "nome_curto": "Fundo", "foco_atuacao": "Segmento",
+            "administrador": "Administrador",
+            col_sel: TAXA_LABELS.get(col_sel, col_sel),
+        }).sort_values(TAXA_LABELS.get(col_sel, col_sel), ascending=False),
+        use_container_width=True, hide_index=True, height=300,
+    )
+
+st.markdown("---")
+
+# ── Correlation ────────────────────────────────────────────────────────────────
+st.markdown('<div class="section-label">Matriz de Correlação entre Taxas</div>', unsafe_allow_html=True)
+st.plotly_chart(heatmap_corr(df, height=450), use_container_width=True)
+
+# ── Scatter ────────────────────────────────────────────────────────────────────
+if len(taxa_cols_avail) >= 2:
+    st.markdown("---")
+    st.markdown('<div class="section-label">Explorador de Correlações</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        sx = st.selectbox("Eixo X", taxa_cols_avail, format_func=lambda c: TAXA_LABELS.get(c, c), key="out_sx")
+    with c2:
+        sy_opts = [c for c in taxa_cols_avail if c != sx]
+        sy = st.selectbox("Eixo Y", sy_opts, format_func=lambda c: TAXA_LABELS.get(c, c), key="out_sy")
+    st.plotly_chart(scatter_two_taxas(df, sx, sy, "foco_atuacao"), use_container_width=True)

@@ -1,0 +1,17 @@
+# Ignorar pastas virtuais do python
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Ignorar o diretório gigante com os PDFs e ZIPs da CVM
+Documentos_CVM/
+Documentos_CVM.zip
+
+# Opcionalmente ignorar arquivos gerados de teste local
+dashboard_estatico.html
+gerar_stlite.py
+
+# Credenciais e variáveis de ambiente
+.env
+acesso_banco.txt
