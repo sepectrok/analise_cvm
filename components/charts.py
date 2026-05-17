@@ -81,13 +81,14 @@ def histogram_taxa(df: pd.DataFrame, col: str, height: int = 400) -> go.Figure:
         marker=dict(color=PALETTE["blue"], opacity=0.7, line=dict(color=PALETTE["bg"], width=0.8)),
     ))
 
-    for val, color, label_v in [(s.mean(), PALETTE["copper"], "Média"),
-                                  (s.median(), PALETTE["green"], "Mediana")]:
+    yshift_vals = [12, 28]
+    for i, (val, color, label_v) in enumerate([(s.mean(), PALETTE["copper"], "Média"),
+                                  (s.median(), PALETTE["green"], "Mediana")]):
         fig.add_vline(x=val, line=dict(color=color, dash="dot", width=1.5),
                       annotation=dict(
                           text=f"{label_v}: {val:.3f}%",
                           font=dict(size=12, color=color),
-                          showarrow=False, yshift=12
+                          showarrow=False, yshift=yshift_vals[i]
                       ))
 
     layout = _base_layout(f"Distribuição — {label}", height)
