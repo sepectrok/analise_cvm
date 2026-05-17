@@ -139,6 +139,14 @@ def build_df_fidc() -> pd.DataFrame:
     # Clamp extreme outliers per tipo: performance can be 10-30%, others capped at 10%
     NON_PERF = ["taxa_administracao", "taxa_gestao", "taxa_custodia",
                 "taxa_distribuicao", "taxa_servicing"]
+    
+    # User Request: remove taxa_performance == 0% and taxa_gestao/taxa_administracao > 5%
+    mask_perf_zero = (df_v["_tipo_norm"] == "taxa_performance") & (df_v["_taxa_val"] == 0)
+    mask_gest_adm_high = (df_v["_tipo_norm"].isin(["taxa_gestao", "taxa_administracao"])) & (df_v["_taxa_val"] > 5)
+    
+    df_v = df_v[~mask_perf_zero].copy()
+    df_v = df_v[~mask_gest_adm_high].copy()
+
     mask_perf  = df_v["_tipo_norm"] == "taxa_performance"
     mask_other = df_v["_tipo_norm"].isin(NON_PERF)
     df_v = df_v[~( mask_other & (df_v["_taxa_val"] > 10) )].copy()

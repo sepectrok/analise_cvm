@@ -66,6 +66,11 @@ tab1, tab2 = st.tabs(
 with tab1:
     min_f = st.slider("Nº mínimo de fundos", 1, 10, 2, key="ges_min")
     df_rank = df_agg[df_agg["n_fundos"] >= min_f].sort_values("taxa_gestao")
+    if "taxa_gestao" in df_rank.columns:
+        st.plotly_chart(bar_ranking(df_rank.rename(columns={"taxa_gestao": "_val", "gestor": "_name"}), 
+                                    "_val", "_name", title="Ranking de Taxa de Gestão", 
+                                    top_n=20, highlight_name="Solis", height=500), 
+                        use_container_width=True)
     render_entity_ranking(df_rank, "gestor", "n_fundos", key="ges_rank", taxa_col_to_show="taxa_gestao")
 
 with tab2:

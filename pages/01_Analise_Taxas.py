@@ -38,8 +38,8 @@ with col_sel:
 st.markdown("---")
 
 # ── Tab layout ─────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["📊 Histograma", "📦 Boxplot por Segmento", "🎻 Violin", "🔀 Scatter", "📋 Estatísticas"]
+tab1, tab2, tab3 = st.tabs(
+    ["📊 Histograma", "📦 Boxplot por Segmento", "📋 Estatísticas"]
 )
 
 with tab1:
@@ -49,19 +49,6 @@ with tab2:
     st.plotly_chart(boxplot_by_group(df, taxa_sel, "foco_atuacao", height=460), use_container_width=True)
 
 with tab3:
-    st.plotly_chart(multi_box_taxas(df, height=400), use_container_width=True)
-
-with tab4:
-    other_taxas = [c for c in available if c != taxa_sel]
-    if other_taxas:
-        col_y = st.selectbox("Eixo Y", options=other_taxas,
-                              format_func=lambda c: TAXA_LABELS.get(c, c))
-        st.plotly_chart(scatter_two_taxas(df, taxa_sel, col_y, height=440),
-                        use_container_width=True)
-    else:
-        st.info("Selecione ao menos 2 tipos de taxa para visualizar scatter.")
-
-with tab5:
     st.markdown(f"**{TAXA_LABELS.get(taxa_sel, taxa_sel)}** — Estatísticas Descritivas")
     stats_table(df[taxa_sel], TAXA_LABELS.get(taxa_sel, taxa_sel))
 
