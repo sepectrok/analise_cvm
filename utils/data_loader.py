@@ -102,7 +102,6 @@ def load_raw_data() -> pd.DataFrame:
     return pd.read_excel(DATA_FILE)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def load_responsaveis() -> pd.DataFrame:
     """
     Carrega a tabela auxiliar de responsáveis por fundo.
@@ -192,21 +191,10 @@ def build_df_fidc() -> pd.DataFrame:
     df_fidc["gestor"] = df_fidc["_cnpj_str"].map(
         df_resp["Gestor_Razao_Social"]
     )
-    # Fallback: para fundos sem match na tabela auxiliar, tenta derivar do texto
-    _fallback_adm = (
-        df[df["_tipo_norm"] == "taxa_administracao"]
-        .drop_duplicates("cnpj_tratado")
-        .set_index("cnpj_tratado")["nome_responsavel"]
-    )
-    _fallback_ges = (
-        df[df["_tipo_norm"] == "taxa_gestao"]
-        .drop_duplicates("cnpj_tratado")
-        .set_index("cnpj_tratado")["nome_responsavel"]
-    )
-    _cnpj_key = df_fidc["cnpj_tratado"]
-    df_fidc["administrador"] = df_fidc["administrador"].fillna(_cnpj_key.map(_fallback_adm))
-    df_fidc["gestor"]        = df_fidc["gestor"].fillna(_cnpj_key.map(_fallback_ges))
     df_fidc.drop(columns=["_cnpj_str"], inplace=True)
+    
+    # Usuário solicitou remoção dos fundos que não foram encontrados na tabela de responsáveis (sem fallback)
+    df_fidc.dropna(subset=["administrador", "gestor"], how="all", inplace=True)
 
     # Ensure all TAXA_COLS exist
     for col in TAXA_COLS:
@@ -216,6 +204,17 @@ def build_df_fidc() -> pd.DataFrame:
     # Clean-ups
     df_fidc["nome_fundo"]   = df_fidc["nome_fundo"].fillna("Fundo sem nome")
     df_fidc["foco_atuacao"] = df_fidc["foco_atuacao"].fillna("Não informado")
+    
+    # Normalizar foco de atuação (maiúsculas/minúsculas)
+    def normalizar_foco(x):
+        s = str(x).strip().lower()
+        if s.startswith("não se aplica") or s.startswith("nao se aplica"): return "Não se aplica"
+        if s == "multicarteira outros": return "Multicarteira Outros"
+        if "agro" in s and "multicarteira" in s: return "Multicarteira Agro, Indústria e Comércio"
+        if s == "sem classificacao anbima" or s == "sem classificação anbima": return "Sem Classificação ANBIMA"
+        return str(x).strip()
+    
+    df_fidc["foco_atuacao"] = df_fidc["foco_atuacao"].apply(normalizar_foco)
     df_fidc["data_regulamento"] = pd.to_datetime(
         df_fidc["data_regulamento"], format="%d/%m/%Y", errors="coerce"
     )

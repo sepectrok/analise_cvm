@@ -23,6 +23,7 @@ Premissas:
 - Fundos que possuiam taxas acima de 5% foram tratados como outliers e não foram incluídos na base de dados.
 - Fundos com taxas escalares por PL do fundo, foi tirado a média das taxas para composição de análises.
 - Todos os regulamentos foram lidos por uma IA e são passíveis de erro, aqui faz-se necessário sempre um olhar analítico.
+- Algumas taxas podem ter sido classificadas erroneamente devido à IA não conseguir extrair os dados corretamente, como algumas taxas vazias.
 - O estudo pode ser melhorado por uma futura dupla checagem de dados e ampliação da base de dados.
 
 Para facilitar a análise, fizemos um guia de uso para o usuário.
