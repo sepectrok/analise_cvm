@@ -1,0 +1,4 @@
+Melhorias no preprocessamento_v2.py
+1. Não está identificando bem os prestadores de serviços, no regulamento. Preciso colocar um buscar por CNPJ;
+2. Taxas que referenciam outras taxas;
+3. Mais de um beneficiário de taxa: Grifo, Kedu.
