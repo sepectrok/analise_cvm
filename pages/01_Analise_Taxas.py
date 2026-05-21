@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Análise de Taxas | FIDC Analytics", page_icon="📈", layout="wide")
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, stats_table

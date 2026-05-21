@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # 1. Pastas e Arquivos
-repositorio_salvar = r"C:\Users\marcos.chaves\Documents\Python\CVM\CVM_Analise_Mercado\Documentos_CVM"
+repositorio_salvar = r"Documentos_CVM"
 caminho_excel = os.path.join(repositorio_salvar, "Relatorio_Regulamentos_CVM.xlsx")
 
 print("Carregando o Excel...")
@@ -82,9 +82,25 @@ for cnpj in fundos_pendentes:
         
         # Clicar na Lupa (Visualizar detalhe)
         try:
-            lupa = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[title='Visualizar detalhe do Fundo']")))
+            # Aguarda a tabela renderizar
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[title='Visualizar detalhe do Fundo']")))
+            
+            # Buscar as linhas que contêm a lupa
+            linhas = driver.find_elements(By.XPATH, "//tr[.//a[@title='Visualizar detalhe do Fundo']]")
+            lupa = None
+            
+            # Procurar uma linha que não contenha a situação 'CANCELAD' (Cancelado/Cancelada)
+            for linha in linhas:
+                if "CANCELAD" not in linha.text.upper():
+                    lupa = linha.find_element(By.CSS_SELECTOR, "a[title='Visualizar detalhe do Fundo']")
+                    break
+            
+            # Se todas as linhas estiverem canceladas (ou não encontrou), pega a primeira disponível
+            if not lupa and linhas:
+                lupa = linhas[0].find_element(By.CSS_SELECTOR, "a[title='Visualizar detalhe do Fundo']")
+                
             driver.execute_script("arguments[0].click();", lupa)
-        except:
+        except Exception as e:
             print(f"[{cnpj_clean}] Fundo não retornado na pesquisa da CVM.")
             df.loc[df['CNPJ Fundo'] == cnpj, 'Status'] = "Fundo inexistente no FundosWeb CVM"
             continue

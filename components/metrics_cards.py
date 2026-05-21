@@ -66,23 +66,41 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
     med_perf_solis = df_solis["taxa_performance"].mean() if "taxa_performance" in df_solis.columns else np.nan
     med_perf_mercado = df_mercado["taxa_performance"].mean() if "taxa_performance" in df_mercado.columns else np.nan
 
+    med_inad_solis   = df_solis["taxa_inadimplencia"].mean()   if "taxa_inadimplencia" in df_solis.columns   else np.nan
+    med_inad_mercado = df_mercado["taxa_inadimplencia"].mean() if "taxa_inadimplencia" in df_mercado.columns else np.nan
+
     def calc_delta(val1, val2):
         if pd.isna(val1) or pd.isna(val2) or val2 == 0:
             return None
         return val1 < val2
 
+    aum_solis = df_solis["Valor_PL"].sum() if "Valor_PL" in df_solis.columns else 0
+    aum_mercado = df_mercado["Valor_PL"].sum() if "Valor_PL" in df_mercado.columns else 0
+
+    def fmt_aum(val):
+        if pd.isna(val): return "R$ 0.00"
+        if val >= 1e9: return f"R$ {val/1e9:.2f} Bi"
+        if val >= 1e6: return f"R$ {val/1e6:.2f} Mi"
+        return f"R$ {val:,.2f}"
+
     cards = [
         kpi_card("Fundos Geridos", str(n_solis), "Solis Investimentos",
                  delta=f"vs {n_mercado} no mercado", delta_up=None, card_class="kpi-solis"),
+        kpi_card("AuM (Patrimônio Líquido)", fmt_aum(aum_solis), "Solis Investimentos",
+                 delta=f"Mercado (Fora Solis): {fmt_aum(aum_mercado)}",
+                 delta_up=None, card_class="kpi-solis"),
         kpi_card("Taxa Média de Gestão", fmt_pct(med_gestao_solis), "% a.a. · Solis",
                  delta=f"Mercado (Fora Solis): {fmt_pct(med_gestao_mercado)}",
                  delta_up=calc_delta(med_gestao_solis, med_gestao_mercado), card_class="kpi-solis"),
         kpi_card("Taxa Média de Performance", fmt_pct(med_perf_solis), "% a.a. · Solis",
                  delta=f"Mercado (Fora Solis): {fmt_pct(med_perf_mercado)}",
                  delta_up=calc_delta(med_perf_solis, med_perf_mercado), card_class="kpi-solis"),
+        kpi_card("Inadimplência Média (PDD/DC)", fmt_pct(med_inad_solis), "% · Solis",
+                 delta=f"Mercado (Fora Solis): {fmt_pct(med_inad_mercado)}",
+                 delta_up=calc_delta(med_inad_solis, med_inad_mercado), card_class="kpi-solis"),
     ]
 
-    cols = st.columns(3)
+    cols = st.columns(5)
     for i, card in enumerate(cards):
         with cols[i]:
             st.markdown(card, unsafe_allow_html=True)
@@ -97,29 +115,40 @@ def render_general_kpis(df: pd.DataFrame):
 
     adm_col = df["taxa_administracao"] if "taxa_administracao" in df.columns else pd.Series(dtype=float)
     ges_col = df["taxa_gestao"]        if "taxa_gestao"        in df.columns else pd.Series(dtype=float)
+    inad_col = df["taxa_inadimplencia"] if "taxa_inadimplencia" in df.columns else pd.Series(dtype=float)
 
     med_adm  = adm_col.mean()
     med_ges  = ges_col.mean()
+    med_inad = inad_col.mean()
+
+    aum_total = df["Valor_PL"].sum() if "Valor_PL" in df.columns else 0
+
+    def fmt_aum(val):
+        if pd.isna(val): return "R$ 0.00"
+        if val >= 1e9: return f"R$ {val/1e9:.2f} Bi"
+        if val >= 1e6: return f"R$ {val/1e6:.2f} Mi"
+        return f"R$ {val:,.2f}"
 
     cards = [
+        kpi_card("AuM Mercado (PL Total)", fmt_aum(aum_total), "Patrimônio Líquido", card_class="kpi-market"),
         kpi_card("FIDCs Analisados",    str(n_fundos),    f"{n_focos} segmentos", card_class="kpi-market"),
         kpi_card("Administradores",     str(n_adm),       "entidades únicas", card_class="kpi-market"),
         kpi_card("Gestores",            str(n_ges),       "entidades únicas", card_class="kpi-market"),
         kpi_card("Média Adm.",          fmt_pct(med_adm), f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
         kpi_card("Média Gestão",        fmt_pct(med_ges), f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
-        kpi_card("Nº Segmentos",        str(n_focos),     "focos de atuação", card_class="kpi-market"),
+        kpi_card("Inadimplência Méd. (PDD/DC)", fmt_pct(med_inad), f"mediana: {fmt_pct(inad_col.median())}", card_class="kpi-market"),
     ]
 
-    cols = st.columns(3)
-    for i in range(3):
+    cols = st.columns(4)
+    for i in range(4):
         with cols[i]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
     cols2 = st.columns(3)
-    for i in range(3, 6):
-        with cols2[i - 3]:
+    for i in range(4, 7):
+        with cols2[i - 4]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
 

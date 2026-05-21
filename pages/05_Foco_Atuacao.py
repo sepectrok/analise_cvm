@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Foco de Atuação | FIDC Analytics", page_icon="🎯", layout="wide")
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
@@ -36,7 +35,7 @@ df_seg.columns = ["foco_atuacao"] + [
 ] + ["n_fundos"]
 
 st.markdown("---")
-tab1, tab2, tab3 = st.tabs(["📊 Taxas por Segmento", "📦 Boxplot", "📋 Tabela"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Taxas por Segmento", "📦 Boxplot", "📋 Tabela", "📉 Inadimplência"])
 
 with tab1:
     col_sel = st.selectbox(
@@ -216,3 +215,116 @@ with tab3:
         st.dataframe(df_table, use_container_width=True, hide_index=True)
     else:
         st.info("Sem dados para a tabela.")
+
+with tab4:
+    st.markdown('<div class="section-label">Inadimplência Média por Segmento (PDD/DC) — Solis vs Mercado</div>', unsafe_allow_html=True)
+    if "taxa_inadimplencia" in df.columns and df["taxa_inadimplencia"].notna().any():
+
+        is_solis   = df["gestor"].str.contains("Solis", case=False, na=False)
+        df_solis   = df[is_solis]
+        df_mercado = df[~is_solis]
+
+        # Médias por segmento para cada grupo
+        solis_inad_seg   = df_solis.groupby("foco_atuacao")["taxa_inadimplencia"].mean().to_dict()
+        mercado_inad_seg = df_mercado.groupby("foco_atuacao")["taxa_inadimplencia"].mean().to_dict()
+
+        # Ordenar segmentos pela média geral (mercado)
+        focos = (
+            df_mercado.groupby("foco_atuacao")["taxa_inadimplencia"]
+            .mean()
+            .sort_values(ascending=True)
+            .index.tolist()
+        )
+
+        mkt_inad_mean   = df_mercado["taxa_inadimplencia"].mean()
+        solis_inad_mean = df_solis["taxa_inadimplencia"].mean()
+
+        import plotly.graph_objects as go
+        from components.charts import _base_layout, PALETTE
+
+        n_cats  = len(focos)
+        chart_h = max(700, n_cats * 55 + 120)
+
+        fig = go.Figure()
+
+        # Barra Mercado
+        fig.add_trace(go.Bar(
+            y=focos,
+            x=[mercado_inad_seg.get(f, np.nan) for f in focos],
+            name="Mercado",
+            orientation="h",
+            marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+            hovertemplate="<b>%{y}</b><br>Mercado: %{x:.2f}%<extra></extra>",
+        ))
+
+        # Barra Solis
+        fig.add_trace(go.Bar(
+            y=focos,
+            x=[solis_inad_seg.get(f, np.nan) for f in focos],
+            name="Solis Investimentos",
+            orientation="h",
+            marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+            hovertemplate="<b>%{y}</b><br>Solis: %{x:.2f}%<extra></extra>",
+        ))
+
+        # Linha referência — Média Mercado
+        fig.add_vline(x=mkt_inad_mean, line=dict(color="rgba(217,119,6,1.0)", dash="dot", width=2))
+        fig.add_annotation(
+            x=mkt_inad_mean, y=1.01, yref="paper",
+            text=f"Méd. Mercado: <b>{mkt_inad_mean:.1f}%</b>",
+            showarrow=False, xanchor="left", xshift=8,
+            font=dict(size=10, color="#FFFFFF"),
+            bgcolor="rgba(217,119,6,0.8)", borderpad=5,
+        )
+
+        # Linha referência — Média Solis
+        if pd.notna(solis_inad_mean):
+            fig.add_vline(x=solis_inad_mean, line=dict(color="rgba(96,165,250,1.0)", dash="dash", width=2))
+            fig.add_annotation(
+                x=solis_inad_mean, y=0.86, yref="paper",
+                text=f"Méd. Solis: <b>{solis_inad_mean:.1f}%</b>",
+                showarrow=False, xanchor="left", xshift=8,
+                font=dict(size=10, color="#FFFFFF"),
+                bgcolor="rgba(59,130,246,0.8)", borderpad=5,
+            )
+
+        _layout = _base_layout("", chart_h)
+        for _k in ("margin", "font", "legend"):
+            _layout.pop(_k, None)
+        fig.update_layout(
+            **_layout,
+            barmode="group",
+            bargap=0.28,
+            bargroupgap=0.06,
+            margin=dict(l=240, r=40, t=20, b=60),
+            font=dict(family="Inter, sans-serif", size=12, color=PALETTE["text"]),
+            legend=dict(
+                orientation="h", yanchor="top", y=-0.05, xanchor="left", x=0,
+                font=dict(size=12), bgcolor="rgba(0,0,0,0)",
+            ),
+        )
+        fig.update_xaxes(title_text="% (PDD/DC)", title_font=dict(size=12), tickfont=dict(size=11))
+        fig.update_yaxes(tickfont=dict(size=11), automargin=True)
+
+        st.markdown("**Inadimplência Média (PDD/DC) — Mercado vs Solis por Segmento**")
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Tabela resumo
+        rows_inad = [
+            {
+                "Segmento":    f,
+                "Mercado (%)": round(mercado_inad_seg.get(f, np.nan), 2),
+                "Solis (%)":   round(solis_inad_seg.get(f, np.nan), 2),
+            }
+            for f in sorted(focos)
+        ]
+        st.dataframe(
+            pd.DataFrame(rows_inad).sort_values("Mercado (%)", ascending=False),
+            use_container_width=True, hide_index=True,
+            column_config={
+                "Mercado (%)": st.column_config.NumberColumn(format="%.2f%%"),
+                "Solis (%)":   st.column_config.NumberColumn(format="%.2f%%"),
+            },
+        )
+    else:
+        st.info("Dados de inadimplência não disponíveis para os segmentos filtrados.")

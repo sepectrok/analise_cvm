@@ -7,7 +7,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="Administradores | FIDC Analytics", page_icon="🏢", layout="wide")
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
@@ -33,6 +32,9 @@ taxa_cols_avail = [c for c in TAXA_COLS if c in df_adm.columns]
 agg_dict = {c: "mean" for c in taxa_cols_avail}
 agg_dict["cnpj_tratado"] = "count"
 
+if "taxa_inadimplencia" in df_adm.columns:
+    agg_dict["taxa_inadimplencia"] = "mean"
+
 df_agg = (
     df_adm.groupby("administrador")
     .agg(agg_dict)
@@ -52,8 +54,8 @@ if "taxa_administracao" in df_agg.columns:
 st.markdown("---")
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2 = st.tabs(
-    ["📋 Ranking", "📊 Distribuição"]
+tab1, tab2, tab3 = st.tabs(
+    ["📋 Ranking", "📊 Distribuição", "📉 Inadimplência"]
 )
 
 with tab1:
@@ -66,3 +68,31 @@ with tab2:
         st.plotly_chart(histogram_taxa(df, "taxa_administracao"), use_container_width=True)
     else:
         st.info("Dados de taxa de administração não disponíveis.")
+
+with tab3:
+    st.markdown('<div class="section-label">Inadimplência Média por Administrador (PDD/DC)</div>', unsafe_allow_html=True)
+    if "taxa_inadimplencia" in df_agg.columns and df_agg["taxa_inadimplencia"].notna().any():
+        df_inad = (
+            df_agg[df_agg["taxa_inadimplencia"].notna()]
+            .sort_values("taxa_inadimplencia", ascending=True)
+        )
+        from components.charts import bar_ranking
+        st.plotly_chart(
+            bar_ranking(
+                df_inad.rename(columns={"taxa_inadimplencia": "_val", "administrador": "_name"}),
+                "_val", "_name",
+                title="Ranking de Inadimplência por Administrador (PDD/DC %)",
+                top_n=25, highlight_name="Solis", height=600,
+            ),
+            use_container_width=True,
+        )
+        st.dataframe(
+            df_inad[["administrador", "n_fundos", "taxa_inadimplencia"]]
+            .sort_values("taxa_inadimplencia", ascending=False)
+            .rename(columns={"administrador": "Administrador", "n_fundos": "Nº Fundos", "taxa_inadimplencia": "Inadimplência Média (%)"}),
+            use_container_width=True, hide_index=True,
+            column_config={"Inadimplência Média (%)": st.column_config.NumberColumn(format="%.2f%%")},
+        )
+    else:
+        st.info("Dados de inadimplência não disponíveis para os administradores filtrados.")
+

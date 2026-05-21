@@ -7,6 +7,14 @@ __pycache__/
 # Ignorar o diretório gigante com os PDFs e ZIPs da CVM
 Documentos_CVM/
 Documentos_CVM.zip
+data_raw_precess_md/
+data_raw_precess/
+regulamento_convertido_md/
+regulamento_recorte_md/
+secrets.toml
+app_pipeline.py
+data_raw_process/
+data_raw_process_md/
 
 # Opcionalmente ignorar arquivos gerados de teste local
 dashboard_estatico.html

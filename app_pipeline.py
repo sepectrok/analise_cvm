@@ -134,6 +134,7 @@ def excel_path(dirs: dict) -> Path:
 def load_registry(dirs: dict) -> pd.DataFrame:
     xls = excel_path(dirs)
     if xls.exists():
+        print(xls)
         return pd.read_excel(xls, dtype=str)
     return pd.DataFrame(columns=OUTPUT_COLUMNS)
 

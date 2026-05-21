@@ -213,7 +213,7 @@ def radar_fund(df: pd.DataFrame, cnpjs: list[str], height: int = 420) -> go.Figu
 
 def bar_ranking(df_agg: pd.DataFrame, val_col: str, name_col: str,
                 title: str = "", top_n: int = 15, height: int = None, is_percent: bool = True,
-                highlight_name: str = "Solis") -> go.Figure:
+                highlight_name: str = "Solis", is_currency: bool = False) -> go.Figure:
     """Premium horizontal bar chart ranking."""
     df_sorted = df_agg.dropna(subset=[val_col]).nlargest(top_n, val_col).iloc[::-1]
     n = len(df_sorted)
@@ -227,6 +227,15 @@ def bar_ranking(df_agg: pd.DataFrame, val_col: str, name_col: str,
         else:
             colors.append("rgba(148,163,184,0.18)")
 
+    def fmt_val(v):
+        if pd.isna(v): return ""
+        if is_percent: return f"{v:.3f}%"
+        if is_currency:
+            if v >= 1e9: return f"R$ {v/1e9:.2f}B"
+            if v >= 1e6: return f"R$ {v/1e6:.2f}M"
+            return f"R$ {v:,.0f}"
+        return str(int(v))
+
     fig = go.Figure(go.Bar(
         x=df_sorted[val_col],
         y=df_sorted[name_col],
@@ -235,7 +244,7 @@ def bar_ranking(df_agg: pd.DataFrame, val_col: str, name_col: str,
             color=colors,
             line=dict(color="rgba(0,0,0,0)", width=0),
         ),
-        text=[f"{v:.3f}%" if is_percent else str(int(v)) for v in df_sorted[val_col]],
+        text=[fmt_val(v) for v in df_sorted[val_col]],
         textposition="outside",
         textfont=dict(size=11, color=PALETTE["text"]),
     ))
@@ -277,6 +286,36 @@ def donut_foco(df: pd.DataFrame, height: int = 380) -> go.Figure:
     ))
     fig.update_layout(**_base_layout("Distribuição por Foco", height))
     fig.update_layout(legend=dict(orientation="v", font=dict(size=9)))
+    return fig
+
+
+def donut_market_share_solis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame, height: int = 380) -> go.Figure:
+    """Donut chart showing Solis vs Mercado by AuM."""
+    aum_solis = df_solis["Valor_PL"].sum() if "Valor_PL" in df_solis.columns else 0
+    aum_mercado = df_mercado["Valor_PL"].sum() if "Valor_PL" in df_mercado.columns else 0
+
+    if aum_solis == 0 and aum_mercado == 0:
+        return go.Figure()
+
+    fig = go.Figure(go.Pie(
+        labels=["Solis Investimentos", "Mercado"],
+        values=[aum_solis, aum_mercado],
+        hole=0.6,
+        marker=dict(colors=[PALETTE["solis"], "rgba(148,163,184,0.18)"],
+                    line=dict(color=PALETTE["bg"], width=2)),
+        textfont=dict(size=12, color=PALETTE["text_hi"]),
+        hovertemplate="%{label}<br>R$ %{value:,.2f} (%{percent})<extra></extra>",
+    ))
+    
+    # Add centered text
+    total_aum = aum_solis + aum_mercado
+    pct_solis = (aum_solis / total_aum * 100) if total_aum > 0 else 0
+    
+    fig.update_layout(**_base_layout("Market Share — AuM Total", height))
+    fig.update_layout(
+        legend=dict(orientation="h", yanchor="bottom", y=-0.1, xanchor="center", x=0.5, font=dict(size=11)),
+        annotations=[dict(text=f"{pct_solis:.1f}%", x=0.5, y=0.5, font_size=24, showarrow=False, font_color=PALETTE["solis"])]
+    )
     return fig
 
 

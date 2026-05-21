@@ -5,6 +5,13 @@ Main Entry Point
 
 import streamlit as st
 
+st.set_page_config(
+    page_title="Solis · Benchmarking Institucional",
+    page_icon="🏠",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 pages = {
     "Principal": [
         st.Page("Visao_Geral.py", title="Visão Geral", icon="🏠"),

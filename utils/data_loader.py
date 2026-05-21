@@ -10,9 +10,11 @@ import pandas as pd
 import streamlit as st
 
 # ─── Paths ────────────────────────────────────────────────────────────────────
-BASE_DIR       = os.path.dirname(os.path.dirname(__file__))
-DATA_FILE      = os.path.join(BASE_DIR, "regulamentos_analisados.xlsx")
-RESP_FILE      = os.path.join(BASE_DIR, "responsaveis_fundo.xlsx")
+BASE_DIR              = os.path.dirname(os.path.dirname(__file__))
+DATA_FILE             = os.path.join(BASE_DIR, "regulamentos_analisados.xlsx")
+RESP_FILE             = os.path.join(BASE_DIR, "responsaveis_fundo.xlsx")
+PL_FILE               = os.path.join(BASE_DIR, "base_pl_fundos.xlsx")
+INADIMPLENCIA_FILE    = os.path.join(BASE_DIR, "CVM_Carteira_202603 1.xlsx")
 
 # ─── Mapeamento de tipos de taxa ───────────────────────────────────────────────
 TAXA_MAP = [
@@ -115,6 +117,43 @@ def load_responsaveis() -> pd.DataFrame:
     # Deduplicar: um CNPJ pode ter múltiplas linhas — manter a primeira
     return df_resp.drop_duplicates("cnpj_str").set_index("cnpj_str")
 
+def load_pl() -> pd.DataFrame:
+    """
+    Carrega a tabela auxiliar de responsáveis por fundo.
+    Normaliza o CNPJ para string de 14 dígitos (zfill) para garantir join correto.
+    """
+    df_pl = pd.read_excel(PL_FILE)
+    df_pl["cnpj_str"] = (
+        df_pl["ID_CNPJ_Fundo"]
+        .astype(str).str.strip().str.zfill(14)
+    )
+    # Deduplicar: um CNPJ pode ter múltiplas linhas — manter a primeira
+    return df_pl.drop_duplicates("cnpj_str").set_index("cnpj_str")
+
+
+def load_inadimplencia() -> pd.DataFrame:
+    """
+    Carrega a base de carteira CVM e calcula a taxa de inadimplência por fundo.
+    Fórmula: taxa_inadimplencia (%) = (PDD / DC) * 100, limitada a 100%.
+    - PDD = Provisão para Devedores Duvidosos
+    - DC  = Direitos Creditórios em atraso
+    Fundos com DC = 0 recebem NaN (divisão indefinida).
+    """
+    df_inad = pd.read_excel(INADIMPLENCIA_FILE)
+    df_inad["cnpj_str"] = (
+        df_inad["ID_CNPJ_Fundo"]
+        .astype(str).str.strip().str.zfill(14)
+    )
+    df_inad["taxa_inadimplencia"] = np.where(
+        df_inad["DC"] > 0,
+        (df_inad["PDD"] / df_inad["DC"] * 100).clip(upper=100),
+        0,
+    )
+    return (
+        df_inad[["cnpj_str", "taxa_inadimplencia", "PDD", "DC"]]
+        .drop_duplicates("cnpj_str")
+        .set_index("cnpj_str")
+    )
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_df_fidc() -> pd.DataFrame:
@@ -201,6 +240,13 @@ def build_df_fidc() -> pd.DataFrame:
         if col not in df_fidc.columns:
             df_fidc[col] = np.nan
 
+    # Imputação de taxas faltantes pela média da respectiva entidade
+    if "taxa_gestao" in df_fidc.columns and "gestor" in df_fidc.columns:
+        df_fidc["taxa_gestao"] = df_fidc.groupby("gestor")["taxa_gestao"].transform(lambda x: x.fillna(x.mean()))
+        
+    if "taxa_administracao" in df_fidc.columns and "administrador" in df_fidc.columns:
+        df_fidc["taxa_administracao"] = df_fidc.groupby("administrador")["taxa_administracao"].transform(lambda x: x.fillna(x.mean()))
+
     # Clean-ups
     df_fidc["nome_fundo"]   = df_fidc["nome_fundo"].fillna("Fundo sem nome")
     df_fidc["foco_atuacao"] = df_fidc["foco_atuacao"].fillna("Não informado")
@@ -221,6 +267,16 @@ def build_df_fidc() -> pd.DataFrame:
     df_fidc["nome_curto"] = df_fidc["nome_fundo"].apply(
         lambda x: str(x)[:55] + "…" if len(str(x)) > 55 else str(x)
     )
+    
+    # ── Patrimônio Líquido ────────────────────────────────────────────────────────
+    df_pl = load_pl()
+    df_fidc["cnpj_str"] = df_fidc["cnpj_tratado"].astype(str).str.strip().str.zfill(14)
+    df_fidc = df_fidc.join(df_pl, on="cnpj_str")
+
+    # ── Inadimplência (PDD / DC) ──────────────────────────────────────────────────
+    df_inad = load_inadimplencia()
+    df_fidc = df_fidc.join(df_inad, on="cnpj_str")
+    df_fidc.drop(columns=["cnpj_str"], inplace=True)
 
     return df_fidc
 

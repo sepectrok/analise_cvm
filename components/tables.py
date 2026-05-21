@@ -21,15 +21,25 @@ def _style_pct_cols(val):
 
 def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
     """Full analytical table with search, sort and export."""
-    display_cols = ["nome_curto", "foco_atuacao", "administrador", "gestor"] + \
-                   [c for c in TAXA_COLS if c in df.columns]
+    display_cols = ["nome_curto", "foco_atuacao", "administrador", "gestor"]
+    if "Valor_PL" in df.columns: display_cols.append("Valor_PL")
+    if "Valor_PL_Medio" in df.columns: display_cols.append("Valor_PL_Medio")
+    display_cols += [c for c in TAXA_COLS if c in df.columns]
+    if "taxa_inadimplencia" in df.columns: display_cols.append("taxa_inadimplencia")
+    if "PDD" in df.columns: display_cols.append("PDD")
+    if "DC" in df.columns: display_cols.append("DC")
 
     df_disp = df[display_cols].copy()
     df_disp.rename(columns={
-        "nome_curto":     "Fundo",
-        "foco_atuacao":   "Foco",
-        "administrador":  "Administrador",
-        "gestor":         "Gestor",
+        "nome_curto":         "Fundo",
+        "foco_atuacao":       "Foco",
+        "administrador":      "Administrador",
+        "gestor":             "Gestor",
+        "Valor_PL":           "PL Atual",
+        "Valor_PL_Medio":     "PL Médio",
+        "taxa_inadimplencia": "Inadimplência (PDD/DC)",
+        "PDD":                "PDD (R$)",
+        "DC":                 "DC (R$)",
         **{c: TAXA_LABELS.get(c, c) for c in TAXA_COLS},
     }, inplace=True)
 
@@ -50,12 +60,24 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
         "Administrador": st.column_config.TextColumn(width="medium"),
         "Gestor":        st.column_config.TextColumn(width="medium"),
     }
+    if "PL Atual" in df_disp.columns:
+        col_cfg["PL Atual"] = st.column_config.NumberColumn("PL Atual", format="R$ %d")
+    if "PL Médio" in df_disp.columns:
+        col_cfg["PL Médio"] = st.column_config.NumberColumn("PL Médio", format="R$ %d")
     for c in TAXA_COLS:
         lbl = TAXA_LABELS.get(c, c)
         if lbl in df_disp.columns:
             col_cfg[lbl] = st.column_config.NumberColumn(
                 lbl, format="%.3f%%", width="small"
             )
+    if "Inadimplência (PDD/DC)" in df_disp.columns:
+        col_cfg["Inadimplência (PDD/DC)"] = st.column_config.NumberColumn(
+            "Inadimplência (PDD/DC)", format="%.2f%%", width="small"
+        )
+    if "PDD (R$)" in df_disp.columns:
+        col_cfg["PDD (R$)"] = st.column_config.NumberColumn("PDD (R$)", format="R$ %.2f", width="medium")
+    if "DC (R$)" in df_disp.columns:
+        col_cfg["DC (R$)"] = st.column_config.NumberColumn("DC (R$)", format="R$ %.2f", width="medium")
 
     st.dataframe(df_disp, use_container_width=True, hide_index=True,
                  column_config=col_cfg, height=460)

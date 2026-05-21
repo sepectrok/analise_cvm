@@ -5,7 +5,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import streamlit as st
 
-st.set_page_config(page_title="Tabela Analítica | FIDC Analytics", page_icon="📋", layout="wide")
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
@@ -60,17 +59,22 @@ st.markdown('<div class="section-label">Exportar Dados</div>', unsafe_allow_html
 # Build export-ready dataframe
 export_cols = (
     ["cnpj_tratado", "nome_fundo", "foco_atuacao", "administrador", "gestor",
-     "data_regulamento"] + TAXA_COLS
+     "data_regulamento", "Valor_PL", "Valor_PL_Medio"] + TAXA_COLS + ["taxa_inadimplencia", "PDD", "DC"]
 )
 export_cols = [c for c in export_cols if c in df_view.columns]
 df_export = df_view[export_cols].copy()
 df_export.rename(columns={
-    "cnpj_tratado":   "CNPJ",
-    "nome_fundo":     "Nome do Fundo",
-    "foco_atuacao":   "Foco de Atuação",
-    "administrador":  "Administrador",
-    "gestor":         "Gestor",
-    "data_regulamento": "Data do Regulamento",
+    "cnpj_tratado":      "CNPJ",
+    "nome_fundo":        "Nome do Fundo",
+    "foco_atuacao":      "Foco de Atuação",
+    "administrador":     "Administrador",
+    "gestor":            "Gestor",
+    "data_regulamento":  "Data do Regulamento",
+    "Valor_PL":          "PL Atual",
+    "Valor_PL_Medio":    "PL Médio",
+    "taxa_inadimplencia": "Inadimplência PDD/DC (%)",
+    "PDD":               "PDD (R$)",
+    "DC":                "DC (R$)",
     **{c: TAXA_LABELS.get(c, c) + " (% a.a.)" for c in TAXA_COLS},
 }, inplace=True)
 

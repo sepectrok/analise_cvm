@@ -5,12 +5,6 @@ Main Entry Point
 
 import streamlit as st
 
-st.set_page_config(
-    page_title="Solis · Benchmarking Institucional",
-    page_icon="",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # ─── Shared helpers (import after set_page_config) ───────────────────────────
 import sys, os
@@ -18,7 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import institutional_header, render_executive_kpis, render_general_kpis
-from components.charts import bar_foco_comparativo, bar_ranking, boxplot_solis_vs_mercado
+from components.charts import bar_foco_comparativo, bar_ranking, boxplot_solis_vs_mercado, donut_market_share_solis
 from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
@@ -55,9 +49,13 @@ render_general_kpis(df)
 
 st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
 
-# ─── Gráfico 1: Fundos por Segmento ─────────────────────────────────────────
-st.markdown('<div class="section-label">Fundos por Segmento</div>', unsafe_allow_html=True)
-st.plotly_chart(bar_foco_comparativo(df_solis, df_mercado), use_container_width=True)
+# ─── Gráfico 1: Market Share & Segmentos ────────────────────────────────────
+st.markdown('<div class="section-label">Market Share & Segmentos</div>', unsafe_allow_html=True)
+c_mkt, c_seg = st.columns([1, 2])
+with c_mkt:
+    st.plotly_chart(donut_market_share_solis(df_solis, df_mercado, height=450), use_container_width=True)
+with c_seg:
+    st.plotly_chart(bar_foco_comparativo(df_solis, df_mercado, height=450), use_container_width=True)
 
 st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
