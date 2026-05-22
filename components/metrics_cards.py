@@ -66,13 +66,30 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
     med_perf_solis = df_solis["taxa_performance"].mean() if "taxa_performance" in df_solis.columns else np.nan
     med_perf_mercado = df_mercado["taxa_performance"].mean() if "taxa_performance" in df_mercado.columns else np.nan
 
-    med_inad_solis   = df_solis["taxa_inadimplencia"].mean()   if "taxa_inadimplencia" in df_solis.columns   else np.nan
-    med_inad_mercado = df_mercado["taxa_inadimplencia"].mean() if "taxa_inadimplencia" in df_mercado.columns else np.nan
+    med_inad_solis = np.nan
+    if "PDD" in df_solis.columns and "DC" in df_solis.columns:
+        sum_dc_solis = df_solis["DC"].sum()
+        if sum_dc_solis > 0:
+            med_inad_solis = (df_solis["PDD"].sum() / sum_dc_solis * 100)
+            if med_inad_solis > 100: med_inad_solis = 100.0
+
+    med_inad_mercado = np.nan
+    if "PDD" in df_mercado.columns and "DC" in df_mercado.columns:
+        sum_dc_mkt = df_mercado["DC"].sum()
+        if sum_dc_mkt > 0:
+            med_inad_mercado = (df_mercado["PDD"].sum() / sum_dc_mkt * 100)
+            if med_inad_mercado > 100: med_inad_mercado = 100.0
+
+    med_sub_jr_solis = df_solis["Sub_JR"].mean() if "Sub_JR" in df_solis.columns else np.nan
+    med_sub_jr_mercado = df_mercado["Sub_JR"].mean() if "Sub_JR" in df_mercado.columns else np.nan
+
+    med_sub_jr_mz_solis = df_solis["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df_solis.columns else np.nan
+    med_sub_jr_mz_mercado = df_mercado["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df_mercado.columns else np.nan
 
     def calc_delta(val1, val2):
         if pd.isna(val1) or pd.isna(val2) or val2 == 0:
             return None
-        return val1 < val2
+        return val1 > val2
 
     aum_solis = df_solis["Valor_PL"].sum() if "Valor_PL" in df_solis.columns else 0
     aum_mercado = df_mercado["Valor_PL"].sum() if "Valor_PL" in df_mercado.columns else 0
@@ -98,12 +115,25 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
         kpi_card("Inadimplência Média (PDD/DC)", fmt_pct(med_inad_solis), "% · Solis",
                  delta=f"Mercado (Fora Solis): {fmt_pct(med_inad_mercado)}",
                  delta_up=calc_delta(med_inad_solis, med_inad_mercado), card_class="kpi-solis"),
+        kpi_card("Subordinação Jr.", fmt_pct(med_sub_jr_solis), "% · Solis",
+                 delta=f"Mercado (Fora Solis): {fmt_pct(med_sub_jr_mercado)}",
+                 delta_up=calc_delta(med_sub_jr_solis, med_sub_jr_mercado), card_class="kpi-solis"),
+        kpi_card("Subord. Jr + Mez", fmt_pct(med_sub_jr_mz_solis), "% · Solis",
+                 delta=f"Mercado (Fora Solis): {fmt_pct(med_sub_jr_mz_mercado)}",
+                 delta_up=calc_delta(med_sub_jr_mz_solis, med_sub_jr_mz_mercado), card_class="kpi-solis"),
     ]
 
-    cols = st.columns(5)
-    for i, card in enumerate(cards):
-        with cols[i]:
-            st.markdown(card, unsafe_allow_html=True)
+    cols1 = st.columns(4)
+    for i in range(4):
+        with cols1[i]:
+            st.markdown(cards[i], unsafe_allow_html=True)
+    
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    
+    cols2 = st.columns(3)
+    for i in range(4, 7):
+        with cols2[i - 4]:
+            st.markdown(cards[i], unsafe_allow_html=True)
 
 
 def render_general_kpis(df: pd.DataFrame):
@@ -119,7 +149,16 @@ def render_general_kpis(df: pd.DataFrame):
 
     med_adm  = adm_col.mean()
     med_ges  = ges_col.mean()
-    med_inad = inad_col.mean()
+    
+    med_inad = np.nan
+    if "PDD" in df.columns and "DC" in df.columns:
+        sum_dc = df["DC"].sum()
+        if sum_dc > 0:
+            med_inad = (df["PDD"].sum() / sum_dc * 100)
+            if med_inad > 100: med_inad = 100.0
+
+    med_sub_jr = df["Sub_JR"].mean() if "Sub_JR" in df.columns else np.nan
+    med_sub_jr_mz = df["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df.columns else np.nan
 
     aum_total = df["Valor_PL"].sum() if "Valor_PL" in df.columns else 0
 
@@ -137,18 +176,27 @@ def render_general_kpis(df: pd.DataFrame):
         kpi_card("Média Adm.",          fmt_pct(med_adm), f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
         kpi_card("Média Gestão",        fmt_pct(med_ges), f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
         kpi_card("Inadimplência Méd. (PDD/DC)", fmt_pct(med_inad), f"mediana: {fmt_pct(inad_col.median())}", card_class="kpi-market"),
+        kpi_card("Subordinação Jr.", fmt_pct(med_sub_jr), "Média", card_class="kpi-market"),
+        kpi_card("Subord. Jr + Mez", fmt_pct(med_sub_jr_mz), "Média", card_class="kpi-market"),
     ]
 
-    cols = st.columns(4)
-    for i in range(4):
-        with cols[i]:
+    cols1 = st.columns(3)
+    for i in range(3):
+        with cols1[i]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
     cols2 = st.columns(3)
-    for i in range(4, 7):
-        with cols2[i - 4]:
+    for i in range(3, 6):
+        with cols2[i - 3]:
+            st.markdown(cards[i], unsafe_allow_html=True)
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+    cols3 = st.columns(3)
+    for i in range(6, 9):
+        with cols3[i - 6]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
 

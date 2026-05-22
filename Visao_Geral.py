@@ -51,13 +51,11 @@ st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
 
 # ─── Gráfico 1: Market Share & Segmentos ────────────────────────────────────
 st.markdown('<div class="section-label">Market Share & Segmentos</div>', unsafe_allow_html=True)
-c_mkt, c_seg = st.columns([1, 2])
-with c_mkt:
-    st.plotly_chart(donut_market_share_solis(df_solis, df_mercado, height=450), use_container_width=True)
-with c_seg:
-    st.plotly_chart(bar_foco_comparativo(df_solis, df_mercado, height=450), use_container_width=True)
+st.plotly_chart(donut_market_share_solis(df_solis, df_mercado, height=450), use_container_width=True)
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.plotly_chart(bar_foco_comparativo(df_solis, df_mercado, height=450), use_container_width=True)
 
-st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
 # ─── Gráfico 2: Distribuição Taxas ────────────────────────────────────────────
 st.markdown('<div class="section-label">Distribuição — Taxa de Gestão (Solis vs Mercado)</div>', unsafe_allow_html=True)

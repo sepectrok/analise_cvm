@@ -626,9 +626,13 @@ hr {
 ::-webkit-scrollbar-thumb { background: var(--text-dim); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ─── Hide Streamlit Branding ────────────────────────────────────────────── */
-#MainMenu, footer, header { visibility: hidden !important; }
-[data-testid="stToolbar"] { display: none !important; }
+/* ─── Hide Streamlit Branding ───────────────────────────────────────────── */
+/* NOTA: Não tocamos no header nem no collapsedControl via CSS.
+   O botão de toggle da sidebar é garantido via JavaScript em sidebar.py */
+#MainMenu, footer { visibility: hidden !important; }
+[data-testid="stToolbar"]        { display: none !important; }
+[data-testid="stDecoration"]     { display: none !important; }
+[data-testid="stStatusWidget"]   { display: none !important; }
 
 /* ─── Slider Styling ─────────────────────────────────────────────────────── */
 [data-testid="stSlider"] [data-testid="stThumbValue"] {

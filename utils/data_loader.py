@@ -133,24 +133,34 @@ def load_pl() -> pd.DataFrame:
 
 def load_inadimplencia() -> pd.DataFrame:
     """
-    Carrega a base de carteira CVM e calcula a taxa de inadimplência por fundo.
-    Fórmula: taxa_inadimplencia (%) = (PDD / DC) * 100, limitada a 100%.
-    - PDD = Provisão para Devedores Duvidosos
-    - DC  = Direitos Creditórios em atraso
-    Fundos com DC = 0 recebem NaN (divisão indefinida).
+    Carrega a base de carteira CVM e calcula duas métricas de inadimplência:
+      - taxa_inadimplencia    (PDD / DC)       × 100 — concentração da PDD sobre DC em atraso
+      - taxa_inadimplencia_pl (PDD / Carteira) × 100 — peso da PDD sobre o PL total do fundo
+    Fundos com DC = 0 ou Carteira <= 0 recebem NaN.
     """
     df_inad = pd.read_excel(INADIMPLENCIA_FILE)
     df_inad["cnpj_str"] = (
-        df_inad["ID_CNPJ_Fundo"]
-        .astype(str).str.strip().str.zfill(14)
+        pd.to_numeric(df_inad["ID_CNPJ_Fundo"], errors="coerce")
+        .dropna()
+        .astype(int).astype(str).str.strip().str.zfill(14)
     )
+    df_inad = df_inad[df_inad["cnpj_str"].notna()]
+    # Metodologia 1: PDD / DC (direitos creditórios em atraso)
     df_inad["taxa_inadimplencia"] = np.where(
         df_inad["DC"] > 0,
         (df_inad["PDD"] / df_inad["DC"] * 100).clip(upper=100),
-        0,
+        np.nan,
     )
+    # Metodologia 2: PDD / PL (carteira total do fundo)
+    df_inad["taxa_inadimplencia_pl"] = np.where(
+        df_inad["PL_CVM"] > 0,
+        (df_inad["PDD"] / df_inad["PL_CVM"] * 100).clip(upper=100),
+        np.nan,
+    )
+    df_inad["Sub_JR"] = pd.to_numeric(df_inad["Sub_JR"], errors="coerce") * 100
+    df_inad["Sub_JR_MZ"] = pd.to_numeric(df_inad["Sub_JR_MZ"], errors="coerce") * 100
     return (
-        df_inad[["cnpj_str", "taxa_inadimplencia", "PDD", "DC"]]
+        df_inad[["cnpj_str", "taxa_inadimplencia", "taxa_inadimplencia_pl", "PDD", "DC", "PL_CVM", "Situacao", "Check_PL", "Sub_JR", "Sub_JR_MZ"]]
         .drop_duplicates("cnpj_str")
         .set_index("cnpj_str")
     )
@@ -178,7 +188,7 @@ def build_df_fidc() -> pd.DataFrame:
     NON_PERF = ["taxa_administracao", "taxa_gestao", "taxa_custodia",
                 "taxa_distribuicao", "taxa_servicing"]
     
-    # User Request: remove taxa_performance == 0% and taxa_gestao/taxa_administracao > 5%
+    # User Request: remove taxa_performance == 0% or taxa_gestao/taxa_administracao > 5%
     mask_perf_zero = (df_v["_tipo_norm"] == "taxa_performance") & (df_v["_taxa_val"] == 0)
     mask_gest_adm_high = (df_v["_tipo_norm"].isin(["taxa_gestao", "taxa_administracao"])) & (df_v["_taxa_val"] > 5)
     
@@ -240,10 +250,22 @@ def build_df_fidc() -> pd.DataFrame:
         if col not in df_fidc.columns:
             df_fidc[col] = np.nan
 
+    # Preservar taxas originais (sem imputação) para análise comparativa
+    # NaN = fundo sem taxa explícita no regulamento
+    if "taxa_gestao" in df_fidc.columns:
+        df_fidc["taxa_gestao_raw"] = df_fidc["taxa_gestao"].copy()
+    else:
+        df_fidc["taxa_gestao_raw"] = np.nan
+
+    if "taxa_administracao" in df_fidc.columns:
+        df_fidc["taxa_administracao_raw"] = df_fidc["taxa_administracao"].copy()
+    else:
+        df_fidc["taxa_administracao_raw"] = np.nan
+
     # Imputação de taxas faltantes pela média da respectiva entidade
     if "taxa_gestao" in df_fidc.columns and "gestor" in df_fidc.columns:
         df_fidc["taxa_gestao"] = df_fidc.groupby("gestor")["taxa_gestao"].transform(lambda x: x.fillna(x.mean()))
-        
+
     if "taxa_administracao" in df_fidc.columns and "administrador" in df_fidc.columns:
         df_fidc["taxa_administracao"] = df_fidc.groupby("administrador")["taxa_administracao"].transform(lambda x: x.fillna(x.mean()))
 

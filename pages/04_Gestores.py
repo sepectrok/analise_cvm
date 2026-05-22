@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import streamlit as st
 import pandas as pd
 import numpy as np
-
+import plotly.graph_objects as go
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, kpi_card, insight_card
@@ -35,13 +35,30 @@ agg_dict["cnpj_tratado"] = "count"
 if "Valor_PL" in df_ges.columns:
     agg_dict["Valor_PL"] = "sum"
 
-if "taxa_inadimplencia" in df_ges.columns:
-    agg_dict["taxa_inadimplencia"] = "mean"
+if "PDD" in df_ges.columns:
+    agg_dict["PDD"] = "sum"
+if "DC" in df_ges.columns:
+    agg_dict["DC"] = "sum"
+if "PL_CVM" in df_ges.columns:
+    agg_dict["PL_CVM"] = "sum"
+if "Sub_JR" in df_ges.columns:
+    agg_dict["Sub_JR"] = "mean"
+if "Sub_JR_MZ" in df_ges.columns:
+    agg_dict["Sub_JR_MZ"] = "mean"
 
 if "taxa_gestao" in df_ges.columns and "Valor_PL" in df_ges.columns:
     df_ges = df_ges.copy()
-    df_ges["remun_esperada"] = (((1 + df_ges["taxa_gestao"]/100) ** (21/252)) - 1) * df_ges["Valor_PL"]
+    # Versão com imputação (usa média do gestor quando taxa ausente)
+    df_ges["remun_esperada"] = (((1 + df_ges["taxa_gestao"] / 100) ** (21 / 252)) - 1) * df_ges["Valor_PL"]
     agg_dict["remun_esperada"] = "sum"
+    # Versão somente taxa real (exclui fundos sem taxa explícita no regulamento)
+    if "taxa_gestao_raw" in df_ges.columns:
+        df_ges["remun_esperada_real"] = np.where(
+            df_ges["taxa_gestao_raw"].notna(),
+            (((1 + df_ges["taxa_gestao_raw"] / 100) ** (21 / 252)) - 1) * df_ges["Valor_PL"],
+            np.nan,
+        )
+        agg_dict["remun_esperada_real"] = "sum"
 
 df_agg = (
     df_ges.groupby("gestor")
@@ -50,6 +67,21 @@ df_agg = (
     .rename(columns={"cnpj_tratado": "n_fundos"})
     .sort_values("n_fundos", ascending=False)
 )
+
+# Calcula inadimplência ponderada realista: soma(PDD) / soma(DC ou PL)
+if "PDD" in df_agg.columns:
+    if "DC" in df_agg.columns:
+        df_agg["taxa_inadimplencia"] = np.where(
+            df_agg["DC"] > 0,
+            (df_agg["PDD"] / df_agg["DC"] * 100).clip(upper=100),
+            np.nan,
+        )
+    if "PL_CVM" in df_agg.columns:
+        df_agg["taxa_inadimplencia_pl"] = np.where(
+            df_agg["PL_CVM"] > 0,
+            (df_agg["PDD"] / df_agg["PL_CVM"] * 100).clip(upper=100),
+            np.nan,
+        )
 
 if not df_agg.empty and "taxa_gestao" in df_agg.columns:
     max_idx = df_agg["taxa_gestao"].idxmax()
@@ -69,8 +101,10 @@ if "taxa_gestao" in df_agg.columns:
 
 st.markdown("---")
 
-tab1, tab2, tab3, tab4 = st.tabs(
-    ["📋 Ranking", "📊 Distribuição", "💰 Remuneração Esperada", "📉 Inadimplência"]
+# O detalhamento completo por fundo está exibido na tabela visual ao final da página.
+
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação"]
 )
 
 with tab1:
@@ -79,21 +113,21 @@ with tab1:
         rank_metric = st.radio("Ordenar ranking por:", ["Taxa de Gestão", "AuM (Patrimônio Líquido)"], horizontal=True)
     with col_min:
         min_f = st.slider("Nº mínimo de fundos", 1, 10, 2, key="ges_min")
-        
+
     if rank_metric == "Taxa de Gestão":
         df_rank = df_agg[df_agg["n_fundos"] >= min_f].sort_values("taxa_gestao")
         if "taxa_gestao" in df_rank.columns:
-            st.plotly_chart(bar_ranking(df_rank.rename(columns={"taxa_gestao": "_val", "gestor": "_name"}), 
-                                        "_val", "_name", title="Ranking de Taxa de Gestão", 
-                                        top_n=20, highlight_name="Solis", height=500), 
+            st.plotly_chart(bar_ranking(df_rank.rename(columns={"taxa_gestao": "_val", "gestor": "_name"}),
+                                        "_val", "_name", title="Ranking de Taxa de Gestão",
+                                        top_n=20, highlight_name="Solis", height=500),
                             use_container_width=True)
         render_entity_ranking(df_rank, "gestor", "n_fundos", key="ges_rank", taxa_col_to_show="taxa_gestao")
     else:
         if "Valor_PL" in df_agg.columns:
             df_rank = df_agg[df_agg["n_fundos"] >= min_f].sort_values("Valor_PL")
-            st.plotly_chart(bar_ranking(df_rank.rename(columns={"Valor_PL": "_val", "gestor": "_name"}), 
-                                        "_val", "_name", title="Ranking de AuM", 
-                                        top_n=20, highlight_name="Solis", height=500, is_percent=False, is_currency=True), 
+            st.plotly_chart(bar_ranking(df_rank.rename(columns={"Valor_PL": "_val", "gestor": "_name"}),
+                                        "_val", "_name", title="Ranking de AuM",
+                                        top_n=20, highlight_name="Solis", height=500, is_percent=False, is_currency=True),
                             use_container_width=True)
             st.dataframe(
                 df_rank[["gestor", "n_fundos", "Valor_PL"]].sort_values("Valor_PL", ascending=False).rename(columns={
@@ -104,71 +138,311 @@ with tab1:
             )
 
 with tab2:
-    col_dist1, col_dist2 = st.columns(2)
-    with col_dist1:
-        if "taxa_gestao" in df.columns:
-            st.plotly_chart(histogram_taxa(df, "taxa_gestao"), use_container_width=True)
-        else:
-            st.info("Dados de taxa de gestão não disponíveis.")
-    with col_dist2:
-        if "Valor_PL" in df.columns:
-            import plotly.graph_objects as go
-            fig_aum = go.Figure(go.Histogram(
-                x=df["Valor_PL"].dropna(), nbinsx=30,
-                marker=dict(color="#3B82F6", opacity=0.7, line=dict(color="#08090F", width=0.8))
-            ))
-            fig_aum.update_layout(
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#08090F",
-                font=dict(family="Inter", size=12, color="#94A3B8"),
-                height=400, margin=dict(l=16, r=24, t=44, b=36),
-                title=dict(text="Distribuição de AuM", font=dict(family="Space Grotesk, Inter", size=15, color="#F1F5F9")),
-                xaxis=dict(title="AuM (R$)", gridcolor="rgba(148,163,184,0.06)", tickfont=dict(size=10)),
-                yaxis=dict(title="Fundos", gridcolor="rgba(148,163,184,0.06)")
-            )
-            st.plotly_chart(fig_aum, use_container_width=True)
+    if "taxa_gestao" in df.columns:
+        st.plotly_chart(histogram_taxa(df, "taxa_gestao"), use_container_width=True)
+    else:
+        st.info("Dados de taxa de gestão não disponíveis.")
 
 with tab3:
-    st.markdown('<div class="section-label">Remuneração Esperada</div>', unsafe_allow_html=True)
-    st.caption("`((1 + taxa_gestão/100)^(21/252) - 1) * PL_CVM`. Estima a receita mensal gerada pela taxa de gestão.")
-    if "remun_esperada" in df_agg.columns:
-        df_rank_remun = df_agg[df_agg["n_fundos"] >= min_f].sort_values("remun_esperada")
-        st.plotly_chart(bar_ranking(df_rank_remun.rename(columns={"remun_esperada": "_val", "gestor": "_name"}), 
-                                    "_val", "_name", title="Remuneração Esperada por Gestor (R$/Mês)", 
-                                    top_n=20, highlight_name="Solis", height=500, is_percent=False, is_currency=True), 
-                        use_container_width=True)
-                        
-        st.dataframe(
-            df_rank_remun[["gestor", "n_fundos", "remun_esperada"]].sort_values("remun_esperada", ascending=False).rename(columns={
-                "gestor": "Gestor", "n_fundos": "Nº Fundos", "remun_esperada": "Remuneração Mensal Estimada (R$)"
-            }),
-            use_container_width=True, hide_index=True,
-            column_config={"Remuneração Mensal Estimada (R$)": st.column_config.NumberColumn(format="R$ %.2f")}
+    st.markdown('<div class="section-label">Remuneração Esperada por Gestor</div>', unsafe_allow_html=True)
+    st.caption("`((1 + taxa_gestão/100)^(21/252) - 1) × PL_CVM` — Estimativa da receita mensal gerada pela taxa de gestão.")
+
+    subtab_real, subtab_imp = st.tabs(["📌 Taxa Real", "📊 Com Imputação de Média"])
+
+    # ── Sub-tab: Taxa Real (somente fundos com taxa explícita no regulamento) ──
+    with subtab_real:
+        st.caption(
+            "Considera apenas fundos que possuem **taxa de gestão explícita** no regulamento. "
+            "Fundos sem taxa informada são excluídos deste cálculo."
         )
-    else:
-        st.info("Dados de PL Médio ou Taxa de Gestão não disponíveis para o cálculo.")
+        if "remun_esperada_real" in df_agg.columns and df_agg["remun_esperada_real"].notna().any():
+            df_real = (
+                df_agg[df_agg["remun_esperada_real"].notna() & (df_agg["n_fundos"] >= min_f)]
+                .sort_values("remun_esperada_real")
+            )
+            if not df_real.empty:
+                # KPI total
+                total_real = df_real["remun_esperada_real"].sum()
+                st.metric(
+                    "Remuneração Total (Taxa Real)",
+                    f"R$ {total_real/1e6:.2f}M" if total_real >= 1e6 else f"R$ {total_real:,.0f}",
+                )
+                st.plotly_chart(
+                    bar_ranking(
+                        df_real.rename(columns={"remun_esperada_real": "_val", "gestor": "_name"}),
+                        "_val", "_name",
+                        title="Remuneração Esperada — Somente Taxa Real (R$/Mês)",
+                        top_n=20, highlight_name="Solis", height=520,
+                        is_percent=False, is_currency=True,
+                    ),
+                    use_container_width=True,
+                )
+                st.dataframe(
+                    df_real[["gestor", "n_fundos", "remun_esperada_real"]]
+                    .sort_values("remun_esperada_real", ascending=False)
+                    .rename(columns={
+                        "gestor": "Gestor",
+                        "n_fundos": "Nº Fundos",
+                        "remun_esperada_real": "Remuneração Mensal Estimada (R$)",
+                    }),
+                    use_container_width=True, hide_index=True,
+                    column_config={"Remuneração Mensal Estimada (R$)": st.column_config.NumberColumn(format="R$ %.2f")},
+                )
+            else:
+                st.info("Nenhum gestor com taxa real disponível para os filtros aplicados.")
+        else:
+            st.info("Dados de taxa de gestão real não disponíveis para o cálculo.")
+
+    # ── Sub-tab: Com Imputação de Média (comportamento original) ──────────────
+    with subtab_imp:
+        st.caption(
+            "Quando um fundo não possui taxa de gestão no regulamento, utiliza-se a **média dos demais fundos do mesmo gestor**. "
+            "Inclui todos os fundos com PL disponível."
+        )
+        if "remun_esperada" in df_agg.columns:
+            df_rank_remun = df_agg[df_agg["n_fundos"] >= min_f].sort_values("remun_esperada")
+            if not df_rank_remun.empty:
+                total_imp = df_rank_remun["remun_esperada"].sum()
+                st.metric(
+                    "Remuneração Total (Com Imputação)",
+                    f"R$ {total_imp/1e6:.2f}M" if total_imp >= 1e6 else f"R$ {total_imp:,.0f}",
+                )
+                st.plotly_chart(
+                    bar_ranking(
+                        df_rank_remun.rename(columns={"remun_esperada": "_val", "gestor": "_name"}),
+                        "_val", "_name",
+                        title="Remuneração Esperada — Com Imputação de Média (R$/Mês)",
+                        top_n=20, highlight_name="Solis", height=520,
+                        is_percent=False, is_currency=True,
+                    ),
+                    use_container_width=True,
+                )
+                st.dataframe(
+                    df_rank_remun[["gestor", "n_fundos", "remun_esperada"]]
+                    .sort_values("remun_esperada", ascending=False)
+                    .rename(columns={
+                        "gestor": "Gestor",
+                        "n_fundos": "Nº Fundos",
+                        "remun_esperada": "Remuneração Mensal Estimada (R$)",
+                    }),
+                    use_container_width=True, hide_index=True,
+                    column_config={"Remuneração Mensal Estimada (R$)": st.column_config.NumberColumn(format="R$ %.2f")},
+                )
+            else:
+                st.info("Nenhum dado disponível para os filtros aplicados.")
+        else:
+            st.info("Dados de PL Médio ou Taxa de Gestão não disponíveis para o cálculo.")
 
 with tab4:
-    st.markdown('<div class="section-label">Inadimplência Média por Gestor (PDD/DC)</div>', unsafe_allow_html=True)
-    if "taxa_inadimplencia" in df_agg.columns and df_agg["taxa_inadimplencia"].notna().any():
-        df_inad = (
-            df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= 1)]
-            .sort_values("taxa_inadimplencia", ascending=True)
+    st.markdown('<div class="section-label">Inadimplência Média por Gestor</div>', unsafe_allow_html=True)
+
+    min_f_inad = st.slider("Nº mínimo de fundos sob gestão", 1, 50, 1, key="ges_min_inad")
+
+    subtab_dc, subtab_pl = st.tabs(["📊 PDD / DC", "📉 PDD / PL"])
+
+    # ── Sub-tab: PDD / DC ─────────────────────────────────────────────────────
+    with subtab_dc:
+        st.caption(
+            "**PDD / DC** — Provisão para Devedores Duvidosos sobre os Direitos Creditórios em atraso. "
+            "Mede a cobertura de PDD sobre o crédito inadimplente. Fundos sem DC > 0 são excluídos."
         )
-        st.plotly_chart(
-            bar_ranking(
-                df_inad.rename(columns={"taxa_inadimplencia": "_val", "gestor": "_name"}),
-                "_val", "_name",
-                title="Ranking de Inadimplência por Gestor (PDD/DC %)",
-                top_n=25, highlight_name="Solis", height=600,
-            ),
-            use_container_width=True,
+        if "taxa_inadimplencia" in df_agg.columns and df_agg["taxa_inadimplencia"].notna().any():
+            df_inad_dc = (
+                df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                .sort_values("taxa_inadimplencia", ascending=True)
+            )
+            st.plotly_chart(
+                bar_ranking(
+                    df_inad_dc.rename(columns={"taxa_inadimplencia": "_val", "gestor": "_name"}),
+                    "_val", "_name",
+                    title="Inadimplência por Gestor — PDD / DC (%)",
+                    top_n=25, highlight_name="Solis", height=600,
+                ),
+                use_container_width=True,
+            )
+            st.dataframe(
+                df_inad_dc[["gestor", "n_fundos", "taxa_inadimplencia"]]
+                .sort_values("taxa_inadimplencia", ascending=False)
+                .rename(columns={"gestor": "Gestor", "n_fundos": "Nº Fundos", "taxa_inadimplencia": "PDD / DC (%)"}),
+                use_container_width=True, hide_index=True,
+                column_config={"PDD / DC (%)": st.column_config.NumberColumn(format="%.2f%%")},
+            )
+        else:
+            st.info("Dados de PDD/DC não disponíveis para os gestores filtrados.")
+
+    # ── Sub-tab: PDD / PL ─────────────────────────────────────────────────────
+    with subtab_pl:
+        st.caption(
+            "**PDD / PL** — Provisão para Devedores Duvidosos sobre o Patrimônio Líquido total do fundo. "
+            "Mede o impacto da inadimplência relativo ao tamanho do fundo. Inclui todos os fundos com PL > 0."
         )
-        st.dataframe(
-            df_inad[["gestor", "n_fundos", "taxa_inadimplencia"]]
-            .sort_values("taxa_inadimplencia", ascending=False)
-            .rename(columns={"gestor": "Gestor", "n_fundos": "Nº Fundos", "taxa_inadimplencia": "Inadimplência Média (%)"}),
-            use_container_width=True, hide_index=True,
-            column_config={"Inadimplência Média (%)": st.column_config.NumberColumn(format="%.2f%%")},
-        )
-    else:
-        st.info("Dados de inadimplência não disponíveis para os gestores filtrados.")
+        if "taxa_inadimplencia_pl" in df_agg.columns and df_agg["taxa_inadimplencia_pl"].notna().any():
+            df_inad_pl = (
+                df_agg[df_agg["taxa_inadimplencia_pl"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                .sort_values("taxa_inadimplencia_pl", ascending=True)
+            )
+            st.plotly_chart(
+                bar_ranking(
+                    df_inad_pl.rename(columns={"taxa_inadimplencia_pl": "_val", "gestor": "_name"}),
+                    "_val", "_name",
+                    title="Inadimplência por Gestor — PDD / PL (%)",
+                    top_n=25, highlight_name="Solis", height=600,
+                ),
+                use_container_width=True,
+            )
+            st.dataframe(
+                df_inad_pl[["gestor", "n_fundos", "taxa_inadimplencia_pl"]]
+                .sort_values("taxa_inadimplencia_pl", ascending=False)
+                .rename(columns={"gestor": "Gestor", "n_fundos": "Nº Fundos", "taxa_inadimplencia_pl": "PDD / PL (%)"}),
+                use_container_width=True, hide_index=True,
+                column_config={"PDD / PL (%)": st.column_config.NumberColumn(format="%.2f%%")},
+            )
+        else:
+            st.info("Dados de PDD/PL não disponíveis para os gestores filtrados.")
+
+with tab5:
+    st.markdown('<div class="section-label">Subordinação Média por Gestor</div>', unsafe_allow_html=True)
+
+    min_f_sub = st.slider("Nº mínimo de fundos para rankear", 1, 50, 1, key="ges_min_sub")
+
+    subtab_jr, subtab_jrmz = st.tabs(["Subordinação Jr", "Subordinação Jr + Mez"])
+
+    with subtab_jr:
+        st.caption("Média simples da cota Subordinada Júnior (%) por fundo, agrupada por gestor.")
+        if "Sub_JR" in df_agg.columns and df_agg["Sub_JR"].notna().any():
+            df_sub_jr = (
+                df_agg[df_agg["Sub_JR"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                .sort_values("Sub_JR", ascending=False)
+            )
+            st.plotly_chart(
+                bar_ranking(
+                    df_sub_jr.rename(columns={"Sub_JR": "_val", "gestor": "_name"}),
+                    "_val", "_name",
+                    title="Subordinação Jr Média por Gestor (%)",
+                    top_n=25, highlight_name="Solis", height=600,
+                ),
+                use_container_width=True,
+            )
+            st.dataframe(
+                df_sub_jr[["gestor", "n_fundos", "Sub_JR"]]
+                .sort_values("Sub_JR", ascending=False)
+                .rename(columns={"gestor": "Gestor", "n_fundos": "Nº Fundos", "Sub_JR": "Subordinação Jr (%)"}),
+                use_container_width=True, hide_index=True,
+                column_config={"Subordinação Jr (%)": st.column_config.NumberColumn(format="%.2f%%")},
+            )
+        else:
+            st.info("Dados de Subordinação Jr não disponíveis para os gestores filtrados.")
+
+    with subtab_jrmz:
+        st.caption("Média simples da cota Subordinada Júnior + Mezanino (%) por fundo, agrupada por gestor.")
+        if "Sub_JR_MZ" in df_agg.columns and df_agg["Sub_JR_MZ"].notna().any():
+            df_sub_jrmz = (
+                df_agg[df_agg["Sub_JR_MZ"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                .sort_values("Sub_JR_MZ", ascending=False)
+            )
+            st.plotly_chart(
+                bar_ranking(
+                    df_sub_jrmz.rename(columns={"Sub_JR_MZ": "_val", "gestor": "_name"}),
+                    "_val", "_name",
+                    title="Subordinação Jr + Mez Média por Gestor (%)",
+                    top_n=25, highlight_name="Solis", height=600,
+                ),
+                use_container_width=True,
+            )
+            st.dataframe(
+                df_sub_jrmz[["gestor", "n_fundos", "Sub_JR_MZ"]]
+                .sort_values("Sub_JR_MZ", ascending=False)
+                .rename(columns={"gestor": "Gestor", "n_fundos": "Nº Fundos", "Sub_JR_MZ": "Subordinação Jr+Mez (%)"}),
+                use_container_width=True, hide_index=True,
+                column_config={"Subordinação Jr+Mez (%)": st.column_config.NumberColumn(format="%.2f%%")},
+            )
+        else:
+            st.info("Dados de Subordinação Jr+Mez não disponíveis para os gestores filtrados.")
+
+st.markdown("---")
+
+st.markdown('<div class="section-label">📋 Tabela de Remuneração e Inadimplência Detalhada por Fundo</div>', unsafe_allow_html=True)
+st.caption("Detalhamento completo por fundo e gestor contendo patrimônio líquido, taxas de gestão, remuneração estimada e inadimplência.")
+
+# Criar DataFrame formatado para visualização e download
+df_down = df_ges.copy()
+
+# Definir colunas amigáveis
+cols_map = {
+    "gestor": "Gestor",
+    "nome_fundo": "Fundo",
+    "cnpj_tratado": "CNPJ",
+    "Valor_PL": "Patrimônio Líquido (PL)",
+    "taxa_gestao_raw": "Taxa de Gestão Real (% a.a.)",
+    "taxa_gestao": "Taxa de Gestão com Imputação (% a.a.)",
+    "remun_esperada_real": "Remuneração Estimada (Real)",
+    "remun_esperada": "Remuneração Estimada (Imputada)",
+    "PDD": "PDD",
+    "DC": "DC",
+    "PL_CVM": "PL Inadimplência (PL_CVM)",
+    "taxa_inadimplencia": "Inadimplência PDD/DC (%)",
+    "taxa_inadimplencia_pl": "Inadimplência PDD/PL (%)",
+    "Sub_JR": "Subordinação Jr (%)",
+    "Sub_JR_MZ": "Subordinação Jr+Mez (%)"
+}
+
+# Filtrar colunas que realmente existem no DataFrame
+existing_cols = [c for c in cols_map.keys() if c in df_down.columns]
+df_down_filtered = df_down[existing_cols].rename(columns=cols_map)
+
+# Campo de Busca
+search_query = st.text_input("🔍 Busca na tabela detalhada", key="gestores_detalhada_search", placeholder="Buscar por gestor, fundo ou CNPJ...")
+if search_query:
+    mask = df_down_filtered.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+    df_down_filtered = df_down_filtered[mask]
+
+st.markdown(f"<small style='color:var(--text-muted)'>{len(df_down_filtered)} registros encontrados</small>", unsafe_allow_html=True)
+
+# Configuração de Colunas do Dataframe para exibição premium
+col_cfg_down = {
+    "Gestor": st.column_config.TextColumn(width="medium"),
+    "Fundo": st.column_config.TextColumn(width="large"),
+    "CNPJ": st.column_config.TextColumn(width="medium"),
+}
+if "Patrimônio Líquido (PL)" in df_down_filtered.columns:
+    col_cfg_down["Patrimônio Líquido (PL)"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "Taxa de Gestão Real (% a.a.)" in df_down_filtered.columns:
+    col_cfg_down["Taxa de Gestão Real (% a.a.)"] = st.column_config.NumberColumn(format="%.3f%%", width="small")
+if "Taxa de Gestão com Imputação (% a.a.)" in df_down_filtered.columns:
+    col_cfg_down["Taxa de Gestão com Imputação (% a.a.)"] = st.column_config.NumberColumn(format="%.3f%%", width="small")
+if "Remuneração Estimada (Real)" in df_down_filtered.columns:
+    col_cfg_down["Remuneração Estimada (Real)"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "Remuneração Estimada (Imputada)" in df_down_filtered.columns:
+    col_cfg_down["Remuneração Estimada (Imputada)"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "PDD" in df_down_filtered.columns:
+    col_cfg_down["PDD"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "DC" in df_down_filtered.columns:
+    col_cfg_down["DC"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "PL Inadimplência (PL_CVM)" in df_down_filtered.columns:
+    col_cfg_down["PL Inadimplência (PL_CVM)"] = st.column_config.NumberColumn(format="R$ %,.2f", width="medium")
+if "Inadimplência PDD/DC (%)" in df_down_filtered.columns:
+    col_cfg_down["Inadimplência PDD/DC (%)"] = st.column_config.NumberColumn(format="%.2f%%", width="small")
+if "Inadimplência PDD/PL (%)" in df_down_filtered.columns:
+    col_cfg_down["Inadimplência PDD/PL (%)"] = st.column_config.NumberColumn(format="%.2f%%", width="small")
+if "Subordinação Jr (%)" in df_down_filtered.columns:
+    col_cfg_down["Subordinação Jr (%)"] = st.column_config.NumberColumn(format="%.2f%%", width="small")
+if "Subordinação Jr+Mez (%)" in df_down_filtered.columns:
+    col_cfg_down["Subordinação Jr+Mez (%)"] = st.column_config.NumberColumn(format="%.2f%%", width="small")
+
+# Renderizar Tabela
+st.dataframe(df_down_filtered, use_container_width=True, hide_index=True, column_config=col_cfg_down, height=400)
+
+# Exportar para Excel
+import io
+buf = io.BytesIO()
+with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+    df_down_filtered.to_excel(writer, index=False, sheet_name="Detalhamento")
+buf.seek(0)
+
+st.download_button(
+    label="📥 Exportar Tabela Detalhada para Excel (.xlsx)",
+    data=buf.read(),
+    file_name="remuneracao_e_inadimplencia_detalhada_gestores.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    use_container_width=True
+)
