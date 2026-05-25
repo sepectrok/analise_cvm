@@ -156,7 +156,7 @@ html, body, [data-testid="stAppViewContainer"] {
 
 /* ─── Main Content Area ──────────────────────────────────────────────────── */
 [data-testid="stMainBlockContainer"] {
-    padding-top: 1.2rem !important;
+    padding-top: 3.5rem !important;
     max-width: 1440px !important;
 }
 
@@ -633,6 +633,7 @@ hr {
 [data-testid="stToolbar"]        { display: none !important; }
 [data-testid="stDecoration"]     { display: none !important; }
 [data-testid="stStatusWidget"]   { display: none !important; }
+[data-testid="stHeader"]         { background-color: transparent !important; }
 
 /* ─── Slider Styling ─────────────────────────────────────────────────────── */
 [data-testid="stSlider"] [data-testid="stThumbValue"] {
