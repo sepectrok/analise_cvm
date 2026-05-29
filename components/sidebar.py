@@ -147,7 +147,7 @@ def load_css():
     """, height=1, scrolling=False)
 
 
-def render_sidebar(df: pd.DataFrame) -> dict:
+def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
     """Render the sidebar with filters. Returns a dict of active filter values."""
     with st.sidebar:
         # Logo
@@ -159,6 +159,22 @@ def render_sidebar(df: pd.DataFrame) -> dict:
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="sidebar-section-title">Filtros</div>', unsafe_allow_html=True)
+
+        data_base_sel = None
+        if show_date_filter and "Data_Posicao" in df.columns:
+            # Pegar datas únicas e ordernar decrescente
+            datas = sorted(df["Data_Posicao"].dropna().unique(), reverse=True)
+            if datas:
+                # Format to string like "Mar/2026"
+                data_labels = [pd.to_datetime(d).strftime("%b/%Y").capitalize() for d in datas]
+                data_map = dict(zip(data_labels, datas))
+                
+                selected_label = st.selectbox(
+                    "Data Base",
+                    options=data_labels,
+                    index=0, # Por padrão a mais recente
+                )
+                data_base_sel = data_map[selected_label]
 
         incluir_liquidacao = st.toggle("Incluir fundos em liquidação", value=False)
         filtrar_pl = st.toggle("Apenas fundos com PL Validado (Check PL = OK)", value=False)
@@ -221,6 +237,7 @@ def render_sidebar(df: pd.DataFrame) -> dict:
         """, unsafe_allow_html=True)
 
     filters_dict = {
+        "data_base": data_base_sel,
         "incluir_liquidacao": incluir_liquidacao,
         "filtrar_pl": filtrar_pl,
         "focos": focos,
@@ -234,6 +251,8 @@ def render_sidebar(df: pd.DataFrame) -> dict:
 def apply_sidebar_filters(df: pd.DataFrame, filters: dict) -> pd.DataFrame:
     """Apply the sidebar filter selections to df."""
     f = df.copy()
+    if filters.get("data_base") is not None and "Data_Posicao" in f.columns:
+        f = f[f["Data_Posicao"] == filters["data_base"]]
     if not filters.get("incluir_liquidacao", False) and "Situacao" in f.columns:
         f = f[~f["Situacao"].astype(str).str.contains("Liquida", case=False, na=False)]
     if filters.get("filtrar_pl", False) and "Check_PL" in f.columns:

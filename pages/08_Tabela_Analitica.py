@@ -9,7 +9,7 @@ import streamlit as st
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
 from components.tables import render_analytical_table, export_buttons
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS
 
 load_css()
 df_full = build_df_fidc()
@@ -59,7 +59,8 @@ st.markdown('<div class="section-label">Exportar Dados</div>', unsafe_allow_html
 # Build export-ready dataframe
 export_cols = (
     ["cnpj_tratado", "nome_fundo", "foco_atuacao", "administrador", "gestor",
-     "data_regulamento", "Valor_PL", "Valor_PL_Medio"] + TAXA_COLS + ["taxa_inadimplencia", "PDD", "DC"]
+     "data_regulamento", "Valor_PL", "Valor_PL_Medio"] + TAXA_COLS +
+    ["taxa_inadimplencia", "PDD", "DC", "Sub_JR", "Sub_JR_MZ", "CVNP"] + CVNP_COLS
 )
 export_cols = [c for c in export_cols if c in df_view.columns]
 df_export = df_view[export_cols].copy()
@@ -75,7 +76,11 @@ df_export.rename(columns={
     "taxa_inadimplencia": "Inadimplência PDD/DC (%)",
     "PDD":               "PDD (R$)",
     "DC":                "DC (R$)",
+    "Sub_JR":            "Subordinação Júnior (%)",
+    "Sub_JR_MZ":         "Subordinação Júnior+Mezzanino (%)",
+    "CVNP":              "Credito Vencido Nao Pago - CVNP (R$)",
     **{c: TAXA_LABELS.get(c, c) + " (% a.a.)" for c in TAXA_COLS},
+    **{c: CVNP_LABELS.get(c, c) + " (R$)" for c in CVNP_COLS},
 }, inplace=True)
 
 export_buttons(df_export, label="fidc_analytics")

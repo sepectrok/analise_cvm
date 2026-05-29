@@ -47,6 +47,27 @@ TAXA_LABELS = {
     "taxa_servicing":     "Taxa de Servicing",
 }
 
+# Faixas de aging de crédito vencido não pago (CVNP)
+CVNP_COLS = [
+    "CVNP_1_a_30",
+    "CVNP_31_a_60",
+    "CVNP_61_a_90",
+    "CVNP_91_a_120",
+    "CVNP_121_a_150",
+    "CVNP_151_a_180",
+    "CVNP_180+",
+]
+
+CVNP_LABELS = {
+    "CVNP_1_a_30":    "1-30 dias",
+    "CVNP_31_a_60":   "31-60 dias",
+    "CVNP_61_a_90":   "61-90 dias",
+    "CVNP_91_a_120":  "91-120 dias",
+    "CVNP_121_a_150": "121-150 dias",
+    "CVNP_151_a_180": "151-180 dias",
+    "CVNP_180+":      "180+ dias",
+}
+
 
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,20 +138,6 @@ def load_responsaveis() -> pd.DataFrame:
     # Deduplicar: um CNPJ pode ter múltiplas linhas — manter a primeira
     return df_resp.drop_duplicates("cnpj_str").set_index("cnpj_str")
 
-def load_pl() -> pd.DataFrame:
-    """
-    Carrega a tabela auxiliar de responsáveis por fundo.
-    Normaliza o CNPJ para string de 14 dígitos (zfill) para garantir join correto.
-    """
-    df_pl = pd.read_excel(PL_FILE)
-    df_pl["cnpj_str"] = (
-        df_pl["ID_CNPJ_Fundo"]
-        .astype(str).str.strip().str.zfill(14)
-    )
-    # Deduplicar: um CNPJ pode ter múltiplas linhas — manter a primeira
-    return df_pl.drop_duplicates("cnpj_str").set_index("cnpj_str")
-
-
 def load_inadimplencia() -> pd.DataFrame:
     """
     Carrega a base de carteira CVM e calcula duas métricas de inadimplência:
@@ -157,13 +164,22 @@ def load_inadimplencia() -> pd.DataFrame:
         (df_inad["PDD"] / df_inad["PL_CVM"] * 100).clip(upper=100),
         np.nan,
     )
+    df_inad['Valor_PL'] = df_inad['PL_CVM']
     df_inad["Sub_JR"] = pd.to_numeric(df_inad["Sub_JR"], errors="coerce") * 100
     df_inad["Sub_JR_MZ"] = pd.to_numeric(df_inad["Sub_JR_MZ"], errors="coerce") * 100
-    return (
-        df_inad[["cnpj_str", "taxa_inadimplencia", "taxa_inadimplencia_pl", "PDD", "DC", "PL_CVM", "Situacao", "Check_PL", "Sub_JR", "Sub_JR_MZ"]]
-        .drop_duplicates("cnpj_str")
-        .set_index("cnpj_str")
-    )
+    
+    # Garantir que colunas CVNP são numéricas
+    cols_cvnp_presentes = [c for c in ["CVNP"] + CVNP_COLS if c in df_inad.columns]
+    for c in cols_cvnp_presentes:
+        df_inad[c] = pd.to_numeric(df_inad[c], errors="coerce").fillna(0)
+
+    # Tratamento da data
+    df_inad["Data_Posicao"] = pd.to_datetime(df_inad["Data_Posicao"], errors="coerce")
+    
+    cols_base = ["Data_Posicao", "cnpj_str", "taxa_inadimplencia", "taxa_inadimplencia_pl",
+                 "PDD", "DC", "PL_CVM", "Valor_PL", "Situacao", "Check_PL", "Sub_JR", "Sub_JR_MZ"]
+    cols_final = cols_base + cols_cvnp_presentes
+    return df_inad[cols_final]
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_df_fidc() -> pd.DataFrame:
@@ -290,14 +306,10 @@ def build_df_fidc() -> pd.DataFrame:
         lambda x: str(x)[:55] + "…" if len(str(x)) > 55 else str(x)
     )
     
-    # ── Patrimônio Líquido ────────────────────────────────────────────────────────
-    df_pl = load_pl()
     df_fidc["cnpj_str"] = df_fidc["cnpj_tratado"].astype(str).str.strip().str.zfill(14)
-    df_fidc = df_fidc.join(df_pl, on="cnpj_str")
-
-    # ── Inadimplência (PDD / DC) ──────────────────────────────────────────────────
+    # ── Inadimplência (PDD / DC) e PL ──────────────────────────────────────────────────
     df_inad = load_inadimplencia()
-    df_fidc = df_fidc.join(df_inad, on="cnpj_str")
+    df_fidc = pd.merge(df_fidc, df_inad, on="cnpj_str", how="inner")
     df_fidc.drop(columns=["cnpj_str"], inplace=True)
 
     return df_fidc

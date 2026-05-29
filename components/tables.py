@@ -4,7 +4,7 @@ import io
 import numpy as np
 import pandas as pd
 import streamlit as st
-from utils.data_loader import TAXA_COLS, TAXA_LABELS
+from utils.data_loader import TAXA_COLS, TAXA_LABELS, CVNP_COLS, CVNP_LABELS
 from utils.formatters import fmt_pct
 
 
@@ -28,6 +28,11 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
     if "taxa_inadimplencia" in df.columns: display_cols.append("taxa_inadimplencia")
     if "PDD" in df.columns: display_cols.append("PDD")
     if "DC" in df.columns: display_cols.append("DC")
+    if "Sub_JR" in df.columns: display_cols.append("Sub_JR")
+    if "Sub_JR_MZ" in df.columns: display_cols.append("Sub_JR_MZ")
+    if "CVNP" in df.columns: display_cols.append("CVNP")
+    # Faixas de CVNP (aging)
+    display_cols += [c for c in CVNP_COLS if c in df.columns]
 
     df_disp = df[display_cols].copy()
     df_disp.rename(columns={
@@ -40,7 +45,11 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
         "taxa_inadimplencia": "Inadimplência (PDD/DC)",
         "PDD":                "PDD (R$)",
         "DC":                 "DC (R$)",
+        "Sub_JR":             "Sub. Júnior (%)",
+        "Sub_JR_MZ":          "Sub. Mez+Jr (%)",
+        "CVNP":               "CVNP Total (R$)",
         **{c: TAXA_LABELS.get(c, c) for c in TAXA_COLS},
+        **{c: CVNP_LABELS.get(c, c) + " (R$)" for c in CVNP_COLS},
     }, inplace=True)
 
     # Search
@@ -75,9 +84,19 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
             "Inadimplência (PDD/DC)", format="%.2f%%", width="small"
         )
     if "PDD (R$)" in df_disp.columns:
-        col_cfg["PDD (R$)"] = st.column_config.NumberColumn("PDD (R$)", format="R$ %.2f", width="medium")
+        col_cfg["PDD (R$)"] = st.column_config.NumberColumn("PDD (R$)", format="R$ %d", width="medium")
     if "DC (R$)" in df_disp.columns:
-        col_cfg["DC (R$)"] = st.column_config.NumberColumn("DC (R$)", format="R$ %.2f", width="medium")
+        col_cfg["DC (R$)"] = st.column_config.NumberColumn("DC (R$)", format="R$ %d", width="medium")
+    if "Sub. Júnior (%)" in df_disp.columns:
+        col_cfg["Sub. Júnior (%)"] = st.column_config.NumberColumn("Sub. Júnior", format="%.2f%%", width="small")
+    if "Sub. Mez+Jr (%)" in df_disp.columns:
+        col_cfg["Sub. Mez+Jr (%)"] = st.column_config.NumberColumn("Sub. Mez+Jr", format="%.2f%%", width="small")
+    if "CVNP Total (R$)" in df_disp.columns:
+        col_cfg["CVNP Total (R$)"] = st.column_config.NumberColumn("CVNP Total", format="R$ %d", width="medium")
+    for c in CVNP_COLS:
+        lbl = CVNP_LABELS.get(c, c) + " (R$)"
+        if lbl in df_disp.columns:
+            col_cfg[lbl] = st.column_config.NumberColumn(lbl, format="R$ %,.0f", width="medium")
 
     st.dataframe(df_disp, use_container_width=True, hide_index=True,
                  column_config=col_cfg, height=460)

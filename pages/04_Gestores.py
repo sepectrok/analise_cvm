@@ -12,7 +12,7 @@ from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, kpi_card, insight_card
 from components.charts import bar_ranking, heatmap_entity_taxa, histogram_taxa
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS
 from utils.formatters import fmt_pct
 
 load_css()
@@ -45,6 +45,11 @@ if "Sub_JR" in df_ges.columns:
     agg_dict["Sub_JR"] = "mean"
 if "Sub_JR_MZ" in df_ges.columns:
     agg_dict["Sub_JR_MZ"] = "mean"
+
+# CVNP — aging de vencidos
+for _c in ["CVNP"] + CVNP_COLS:
+    if _c in df_ges.columns:
+        agg_dict[_c] = "sum"
 
 if "taxa_gestao" in df_ges.columns and "Valor_PL" in df_ges.columns:
     df_ges = df_ges.copy()
@@ -103,8 +108,8 @@ st.markdown("---")
 
 # O detalhamento completo por fundo está exibido na tabela visual ao final da página.
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação"]
+tab1, tab2, tab3, tab4, tab5, tab_aging = st.tabs(
+    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação", "Aging de Vencidos"]
 )
 
 with tab1:
@@ -446,3 +451,85 @@ st.download_button(
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     use_container_width=True
 )
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab: Aging de Vencidos
+# ─────────────────────────────────────────────────────────────────────────────
+
+with tab_aging:
+    cvnp_cols_presentes = [c for c in CVNP_COLS if c in df_agg.columns]
+
+    if "CVNP" not in df_agg.columns or not cvnp_cols_presentes:
+        st.info("Dados de CVNP não disponíveis na base atual.")
+    else:
+        st.markdown('<div class="section-label">Ranking de CVNP por Gestor</div>', unsafe_allow_html=True)
+        st.caption(
+            "Crédito Vencido Não Pago total (soma dos fundos) por gestora. "
+            "Solis destacada em azul. Mínimo de fundos aplicável."
+        )
+
+        min_f_aging = st.slider("Nº mínimo de fundos sob gestão", 1, 10, 2, key="ges_aging_min")
+        df_aging = df_agg[df_agg["n_fundos"] >= min_f_aging].copy()
+
+        # ── Ranking CVNP total ────────────────────────────────────────────────
+        st.plotly_chart(
+            bar_ranking(
+                df_aging.rename(columns={"CVNP": "_val", "gestor": "_name"}),
+                "_val", "_name",
+                title="Ranking de CVNP por Gestora (R$)",
+                top_n=15, highlight_name="Solis",
+                is_percent=False, is_currency=True,
+            ),
+            use_container_width=True,
+        )
+
+        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Perfil de Aging — Solis vs. Média de Mercado (%)</div>',
+                    unsafe_allow_html=True)
+        st.caption(
+            "\n"
+            "Distribuição percentual do CVNP por faixa de atraso. "
+            "Normalizado sobre o CVNP total de cada grupo para comparabilidade."
+        )
+
+        is_solis_ges = df_ges["gestor"].str.contains("Solis", case=False, na=False)
+        df_s  = df_ges[is_solis_ges]
+        df_mk = df_ges[~is_solis_ges]
+
+        def _aging_pct(df_g):
+            totais = {c: df_g[c].sum() for c in cvnp_cols_presentes if c in df_g.columns}
+            total_cvnp = sum(totais.values())
+            if total_cvnp == 0:
+                return {c: 0.0 for c in cvnp_cols_presentes}
+            return {c: v / total_cvnp * 100 for c, v in totais.items()}
+
+        pct_solis  = _aging_pct(df_s)
+        pct_mercado = _aging_pct(df_mk)
+
+        import plotly.graph_objects as go
+        from components.charts import _base_layout, PALETTE
+
+        labels = [CVNP_LABELS.get(c, c) for c in cvnp_cols_presentes]
+
+        fig_aging = go.Figure()
+        fig_aging.add_trace(go.Bar(
+            name="Mercado (excl. Solis)",
+            x=labels,
+            y=[pct_mercado.get(c, 0) for c in cvnp_cols_presentes],
+            marker_color="rgba(217,119,6,0.75)",
+            hovertemplate="%{x}: %{y:.2f}%<extra>Mercado</extra>",
+        ))
+        fig_aging.add_trace(go.Bar(
+            name="Solis Investimentos",
+            x=labels,
+            y=[pct_solis.get(c, 0) for c in cvnp_cols_presentes],
+            marker_color="rgba(59,130,246,0.9)",
+            hovertemplate="%{x}: %{y:.2f}%<extra>Solis</extra>",
+        ))
+        _lay = _base_layout("Distribuição do CVNP por Faixa de Atraso (%)", 440)
+        _lay["barmode"] = "group"
+        _lay["margin"].update({"t": 72})
+        _lay["yaxis"].update({"title": "% do CVNP Total", "ticksuffix": "%"})
+        _lay["xaxis"].update({"title": "Faixa de Atraso"})
+        fig_aging.update_layout(**_lay)
+        st.plotly_chart(fig_aging, use_container_width=True)
