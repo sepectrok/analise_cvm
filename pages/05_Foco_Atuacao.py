@@ -93,7 +93,7 @@ with tab1:
         )
         fig.add_annotation(
             x=mkt_mean, y=1.01, yref="paper",
-            text=f"M├®d. Mercado: <b>{mkt_mean:.3f}%</b>",
+            text=f"Méd. Mercado: <b>{mkt_mean:.3f}%</b>",
             showarrow=False, xanchor="left", xshift=8,
             font=dict(size=10, color="#FFFFFF"),
             bgcolor="rgba(217,119,6,0.8)", borderpad=5,
@@ -107,7 +107,7 @@ with tab1:
             )
             fig.add_annotation(
                 x=solis_mean, y=0.86, yref="paper",
-                text=f"M├®d. Solis: <b>{solis_mean:.3f}%</b>",
+                text=f"Méd. Solis: <b>{solis_mean:.3f}%</b>",
                 showarrow=False, xanchor="left", xshift=8,
                 font=dict(size=10, color="#FFFFFF"),
                 bgcolor="rgba(59,130,246,0.8)", borderpad=5,
@@ -300,7 +300,7 @@ with tab4:
                     fig.add_vline(x=mkt_inad_mean, line=dict(color="rgba(217,119,6,1.0)", dash="dot", width=2))
                     fig.add_annotation(
                         x=mkt_inad_mean, y=1.01, yref="paper",
-                        text=f"M├®d. Mercado: <b>{mkt_inad_mean:.1f}%</b>",
+                        text=f"Méd. Mercado: <b>{mkt_inad_mean:.1f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(217,119,6,0.8)", borderpad=5,
@@ -309,7 +309,7 @@ with tab4:
                     fig.add_vline(x=solis_inad_mean, line=dict(color="rgba(96,165,250,1.0)", dash="dash", width=2))
                     fig.add_annotation(
                         x=solis_inad_mean, y=0.86, yref="paper",
-                        text=f"M├®d. Solis: <b>{solis_inad_mean:.1f}%</b>",
+                        text=f"Méd. Solis: <b>{solis_inad_mean:.1f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(59,130,246,0.8)", borderpad=5,
@@ -372,7 +372,7 @@ with tab4:
             df_solis = df[is_solis]
             df_mercado = df[~is_solis]
 
-            # M├®dias por segmento para cada grupo (soma PDD / soma PL_CVM)
+            # Médias por segmento para cada grupo (soma PDD / soma PL_CVM)
             solis_sums_pl = df_solis.groupby("foco_atuacao")[["PDD", "PL_CVM"]].sum() if not df_solis.empty else pd.DataFrame(columns=["PDD", "PL_CVM"])
             solis_inad_seg_pl = {}
             if "PL_CVM" in solis_sums_pl.columns:
@@ -445,7 +445,7 @@ with tab4:
                     fig.add_vline(x=mkt_inad_mean_pl, line=dict(color="rgba(217,119,6,1.0)", dash="dot", width=2))
                     fig.add_annotation(
                         x=mkt_inad_mean_pl, y=1.01, yref="paper",
-                        text=f"M├®d. Mercado: <b>{mkt_inad_mean_pl:.2f}%</b>",
+                        text=f"Méd. Mercado: <b>{mkt_inad_mean_pl:.2f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(217,119,6,0.8)", borderpad=5,
@@ -454,7 +454,7 @@ with tab4:
                     fig.add_vline(x=solis_inad_mean_pl, line=dict(color="rgba(96,165,250,1.0)", dash="dash", width=2))
                     fig.add_annotation(
                         x=solis_inad_mean_pl, y=0.86, yref="paper",
-                        text=f"M├®d. Solis: <b>{solis_inad_mean_pl:.2f}%</b>",
+                        text=f"Méd. Solis: <b>{solis_inad_mean_pl:.2f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(59,130,246,0.8)", borderpad=5,
@@ -565,7 +565,7 @@ with tab5:
                     fig.add_vline(x=solis_mean, line=dict(color="rgba(96,165,250,1.0)", dash="dash", width=2))
                     fig.add_annotation(
                         x=solis_mean, y=0.86, yref="paper",
-                        text=f"M├®d. Solis: <b>{solis_mean:.2f}%</b>",
+                        text=f"Méd. Solis: <b>{solis_mean:.2f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(59,130,246,0.8)", borderpad=5,
@@ -658,7 +658,7 @@ with tab5:
                     fig.add_vline(x=mkt_mean_mz, line=dict(color="rgba(217,119,6,1.0)", dash="dot", width=2))
                     fig.add_annotation(
                         x=mkt_mean_mz, y=1.01, yref="paper",
-                        text=f"M├®d. Mercado: <b>{mkt_mean_mz:.2f}%</b>",
+                        text=f"Méd. Mercado: <b>{mkt_mean_mz:.2f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(217,119,6,0.8)", borderpad=5,
@@ -667,7 +667,7 @@ with tab5:
                     fig.add_vline(x=solis_mean_mz, line=dict(color="rgba(96,165,250,1.0)", dash="dash", width=2))
                     fig.add_annotation(
                         x=solis_mean_mz, y=0.86, yref="paper",
-                        text=f"M├®d. Solis: <b>{solis_mean_mz:.2f}%</b>",
+                        text=f"Méd. Solis: <b>{solis_mean_mz:.2f}%</b>",
                         showarrow=False, xanchor="left", xshift=8,
                         font=dict(size=10, color="#FFFFFF"),
                         bgcolor="rgba(59,130,246,0.8)", borderpad=5,
@@ -754,7 +754,6 @@ if search_query:
 
 st.markdown(f"<small style='color:var(--text-muted)'>{len(df_down_filtered)} registros encontrados</small>", unsafe_allow_html=True)
 
-# Configura├º├úo de Colunas do Dataframe para exibi├º├úo premium
 col_cfg_down = {
     "Segmento": st.column_config.TextColumn(width="medium"),
     "Gestor": st.column_config.TextColumn(width="medium"),

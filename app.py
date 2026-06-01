@@ -7,7 +7,7 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Solis · Benchmarking Institucional",
-    page_icon="logo_solis_v.png",
+    page_icon="SOLIS_BRANDMARK.png",
     layout="wide",
     initial_sidebar_state="expanded",
 )

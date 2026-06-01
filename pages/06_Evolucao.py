@@ -232,6 +232,111 @@ def plot_mean_simple(df_all: pd.DataFrame, date_col: str, val_col: str,
     return fig
 
 
+def plot_inad_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
+                                    pdd_col: str, base_col: str,
+                                    segment_col: str, selected_segments: list,
+                                    title: str, is_solis_only: bool) -> go.Figure:
+    """Evolução temporal da inadimplência ponderada por segmento (Foco de Atuação)."""
+    fig = _build_fig(title, "%")
+    
+    needed = [date_col, pdd_col, base_col, "gestor", segment_col]
+    if any(c not in df_all.columns for c in needed):
+        return fig
+
+    df_work = df_all.dropna(subset=[pdd_col, base_col, date_col, segment_col]).copy()
+    df_work = df_work[df_work[base_col] > 0]
+    df_work = df_work[df_work[segment_col].isin(selected_segments)]
+    if df_work.empty:
+        return fig
+
+    is_solis = df_work["gestor"].str.contains("Solis", case=False, na=False)
+    df_group = df_work[is_solis] if is_solis_only else df_work[~is_solis]
+    if df_group.empty:
+        return fig
+
+    agg = df_group.groupby([date_col, segment_col])[[pdd_col, base_col]].sum().reset_index()
+    agg["val"] = (agg[pdd_col] / agg[base_col] * 100).clip(upper=100)
+
+    # Paleta sóbria — tons dessaturados, distintos e profissionais
+    colors = [
+        "rgba(100,149,190,0.92)",   # azul-aço
+        "rgba(80,148,110,0.90)",    # verde-cinza
+        "rgba(185,138,70,0.90)",    # caramelo
+        "rgba(130,100,168,0.90)",   # lavanda-chumbo
+        "rgba(175,90,85,0.90)",     # terracota
+        "rgba(65,125,140,0.92)",    # petróleo
+        "rgba(150,120,95,0.90)",    # taupe
+    ]
+    color_map = {seg: colors[i % len(colors)] for i, seg in enumerate(selected_segments)}
+
+    for seg in selected_segments:
+        df_seg = agg[agg[segment_col] == seg].sort_values(date_col)
+        if df_seg.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=df_seg[date_col], y=df_seg["val"],
+            mode="lines+markers",
+            name=str(seg),
+            line=dict(width=3, color=color_map.get(seg)),
+            marker=dict(size=8),
+            hovertemplate=f"<b>{seg}</b><br>%{{x|%b/%Y}}: %{{y:.2f}}%<extra></extra>",
+        ))
+
+    return fig
+
+
+
+def plot_sub_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
+                                   sub_col: str, segment_col: str,
+                                   selected_segments: list, title: str,
+                                   is_solis_only: bool) -> go.Figure:
+    """Evolução temporal da subordinação média por segmento (Foco de Atuação)."""
+    fig = _build_fig(title, "%")
+    
+    needed = [date_col, sub_col, "gestor", segment_col]
+    if any(c not in df_all.columns for c in needed):
+        return fig
+
+    df_work = df_all.dropna(subset=[sub_col, date_col, segment_col]).copy()
+    df_work = df_work[df_work[segment_col].isin(selected_segments)]
+    if df_work.empty:
+        return fig
+
+    is_solis = df_work["gestor"].str.contains("Solis", case=False, na=False)
+    df_group = df_work[is_solis] if is_solis_only else df_work[~is_solis]
+    if df_group.empty:
+        return fig
+
+    agg = df_group.groupby([date_col, segment_col])[sub_col].mean().reset_index()
+
+    # Paleta sóbria — tons dessaturados, distintos e profissionais
+    colors = [
+        "rgba(100,149,190,0.92)",   # azul-aço
+        "rgba(80,148,110,0.90)",    # verde-cinza
+        "rgba(185,138,70,0.90)",    # caramelo
+        "rgba(130,100,168,0.90)",   # lavanda-chumbo
+        "rgba(175,90,85,0.90)",     # terracota
+        "rgba(65,125,140,0.92)",    # petróleo
+        "rgba(150,120,95,0.90)",    # taupe
+    ]
+    color_map = {seg: colors[i % len(colors)] for i, seg in enumerate(selected_segments)}
+
+    for seg in selected_segments:
+        df_seg = agg[agg[segment_col] == seg].sort_values(date_col)
+        if df_seg.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=df_seg[date_col], y=df_seg[sub_col],
+            mode="lines+markers",
+            name=str(seg),
+            line=dict(width=3, color=color_map.get(seg)),
+            marker=dict(size=8),
+            hovertemplate=f"<b>{seg}</b><br>%{{x|%b/%Y}}: %{{y:.2f}}%<extra></extra>",
+        ))
+
+    return fig
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Aba: Remuneração
 # ──────────────────────────────────────────────────────────────────────────────
@@ -376,41 +481,98 @@ with tab_remun_adm:
 # ──────────────────────────────────────────────────────────────────────────────
 
 with tab_inad:
-    st.markdown('<div class="section-label">Evolução da Inadimplência — Metodologia Ponderada</div>',
+    st.markdown('<div class="section-label">Evolução da Inadimplência por Segmento — Solis vs Mercado</div>',
                 unsafe_allow_html=True)
     st.caption(
-        "Inadimplência calculada como `Σ(PDD) / Σ(DC ou PL) × 100` — "
-        "mesmo critério do KPI da Visão Geral. "
-        "Fundos sem DC > 0 são excluídos do cálculo PDD/DC."
+        "Evolução temporal da taxa de inadimplência média ponderada real (`Σ(PDD) / Σ(DC ou PL) × 100`) "
+        "entre a carteira Solis e o Mercado geral por segmento."
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if "PDD" in df.columns and "DC" in df.columns:
-            df_dc_ok = df[df["DC"] > 0]
-            st.plotly_chart(
-                plot_inad_pondered(
-                    df_dc_ok, "Data_Posicao", "PDD", "DC",
-                    y_title="PDD / DC (%)",
-                    title="Inadimplência Ponderada — PDD / DC (%)",
-                ),
-                use_container_width=True,
+    if "foco_atuacao" in df.columns:
+        # Obter todos os focos disponíveis
+        available_focos = sorted(df["foco_atuacao"].dropna().unique().tolist())
+        
+        # Tentar obter focos em que a Solis tem dados para pré-seleção inteligente
+        solis_mask = df["gestor"].str.contains("Solis", case=False, na=False)
+        solis_focos = sorted(df[solis_mask]["foco_atuacao"].dropna().unique().tolist())
+        
+        # Caso não encontre nenhum foco da Solis, pega os top 3 mais frequentes
+        if not solis_focos:
+            solis_focos = df["foco_atuacao"].value_counts().head(3).index.tolist()
+            
+        # Garantir que a lista de pré-seleção exista nos focos totais
+        default_focos = [f for f in solis_focos if f in available_focos]
+        
+        # Controles em colunas
+        ctrl_col1, ctrl_col2 = st.columns([3, 1])
+        with ctrl_col1:
+            selected_focos_inad = st.multiselect(
+                "Selecione os Focos de Atuação",
+                options=available_focos,
+                default=default_focos,
+                key="inad_focos_select"
             )
-        else:
-            st.info("Colunas PDD/DC não disponíveis.")
-    with col2:
-        if "PDD" in df.columns and "PL_CVM" in df.columns:
-            df_pl_ok = df[df["PL_CVM"] > 0]
-            st.plotly_chart(
-                plot_inad_pondered(
-                    df_pl_ok, "Data_Posicao", "PDD", "PL_CVM",
-                    y_title="PDD / PL (%)",
-                    title="Inadimplência Ponderada — PDD / PL (%)",
-                ),
-                use_container_width=True,
+        with ctrl_col2:
+            inad_metric = st.selectbox(
+                "Métrica de Inadimplência",
+                options=["PDD / DC (%)", "PDD / PL (%)"],
+                key="inad_metric_select"
             )
+
+        if not selected_focos_inad:
+            st.info("Por favor, selecione ao menos um Foco de Atuação para visualizar a evolução temporal.")
         else:
-            st.info("Colunas PDD/PL não disponíveis.")
+            # Definir variáveis de cálculo com base na métrica selecionada
+            if inad_metric == "PDD / DC (%)":
+                pdd_col, base_col = "PDD", "DC"
+                df_inad_ok = df[df[base_col] > 0] if base_col in df.columns else df
+            else:
+                pdd_col, base_col = "PDD", "PL_CVM"
+                df_inad_ok = df[df[base_col] > 0] if base_col in df.columns else df
+
+            if pdd_col in df.columns and base_col in df.columns:
+                # ── Destrinchado por Foco de Atuação (lado a lado) ───────────────
+                st.markdown(f"**Destrinchado por Foco de Atuação — Inadimplência ({inad_metric})**")
+                st.caption("Cada linha representa um segmento. Solis à esquerda, Mercado à direita. Cores compartilhadas por segmento.")
+                col_solis, col_mkt = st.columns(2)
+
+                with col_solis:
+                    fig_solis = plot_inad_evolution_by_segment(
+                        df_inad_ok, "Data_Posicao", pdd_col, base_col, "foco_atuacao",
+                        selected_focos_inad, f"Solis Investimentos — {inad_metric}", True
+                    )
+                    if not fig_solis.data:
+                        st.info("Sem dados históricos da Solis nos segmentos selecionados.")
+                    else:
+                        st.plotly_chart(fig_solis, use_container_width=True)
+
+                with col_mkt:
+                    fig_mkt = plot_inad_evolution_by_segment(
+                        df_inad_ok, "Data_Posicao", pdd_col, base_col, "foco_atuacao",
+                        selected_focos_inad, f"Mercado (excl. Solis) — {inad_metric}", False
+                    )
+                    if not fig_mkt.data:
+                        st.info("Sem dados históricos do Mercado nos segmentos selecionados.")
+                    else:
+                        st.plotly_chart(fig_mkt, use_container_width=True)
+
+                st.markdown("---")
+
+                # ── Visão Consolidada (linha única) ──────────────────────────────
+                st.markdown(f"**Visão Consolidada — Inadimplência ({inad_metric})**")
+                st.caption("Série única para Solis e Mercado, sem destrinchar por segmento.")
+                df_inad_cons = df_inad_ok.copy()
+                fig_cons = plot_inad_pondered(
+                    df_inad_cons, "Data_Posicao", pdd_col, base_col,
+                    y_title=inad_metric,
+                    title=f"Inadimplência Consolidada — {inad_metric}",
+                )
+                if fig_cons.data:
+                    st.plotly_chart(fig_cons, use_container_width=True)
+                else:
+                    st.info("Sem dados para a visão consolidada.")
+            else:
+                st.info(f"Colunas de cálculo de inadimplência ({pdd_col}/{base_col}) não disponíveis.")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -418,24 +580,86 @@ with tab_inad:
 # ──────────────────────────────────────────────────────────────────────────────
 
 with tab_sub:
-    st.markdown('<div class="section-label">Evolução da Subordinação Média — Solis vs Mercado</div>',
+    st.markdown('<div class="section-label">Evolução da Subordinação por Segmento — Solis vs Mercado</div>',
                 unsafe_allow_html=True)
-    st.caption("Média simples da subordinação dos fundos — Solis vs. Mercado (excl. Solis).")
+    st.caption("Evolução temporal da taxa de subordinação média simples entre a carteira Solis e o Mercado geral por segmento.")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if "Sub_JR" in df.columns:
-            st.plotly_chart(
-                plot_mean_simple(df, "Data_Posicao", "Sub_JR",
-                                 y_title="Subordinação Jr (%)",
-                                 title="Subordinação Júnior — Evolução Média (%)"),
-                use_container_width=True,
+    if "foco_atuacao" in df.columns:
+        # Obter todos os focos disponíveis
+        available_focos = sorted(df["foco_atuacao"].dropna().unique().tolist())
+        
+        # Tentar obter focos em que a Solis tem dados para pré-seleção inteligente
+        solis_mask = df["gestor"].str.contains("Solis", case=False, na=False)
+        solis_focos = sorted(df[solis_mask]["foco_atuacao"].dropna().unique().tolist())
+        
+        # Caso não encontre nenhum foco da Solis, pega os top 3 mais frequentes
+        if not solis_focos:
+            solis_focos = df["foco_atuacao"].value_counts().head(3).index.tolist()
+            
+        # Garantir que a lista de pré-seleção exista nos focos totais
+        default_focos = [f for f in solis_focos if f in available_focos]
+        
+        # Controles em colunas
+        ctrl_col1, ctrl_col2 = st.columns([3, 1])
+        with ctrl_col1:
+            selected_focos_sub = st.multiselect(
+                "Selecione os Focos de Atuação",
+                options=available_focos,
+                default=default_focos,
+                key="sub_focos_select"
             )
-    with col2:
-        if "Sub_JR_MZ" in df.columns:
-            st.plotly_chart(
-                plot_mean_simple(df, "Data_Posicao", "Sub_JR_MZ",
-                                 y_title="Subordinação Jr+Mez (%)",
-                                 title="Subordinação Jr+Mez — Evolução Média (%)"),
-                use_container_width=True,
+        with ctrl_col2:
+            sub_metric = st.selectbox(
+                "Métrica de Subordinação",
+                options=["Subordinação Júnior (%)", "Subordinação Júnior + Mezanino (%)"],
+                key="sub_metric_select"
             )
+
+        if not selected_focos_sub:
+            st.info("Por favor, selecione ao menos um Foco de Atuação para visualizar a evolução temporal.")
+        else:
+            # Definir variável com base na métrica selecionada
+            sub_col = "Sub_JR" if sub_metric == "Subordinação Júnior (%)" else "Sub_JR_MZ"
+
+            if sub_col in df.columns:
+                # ── Destrinchado por Foco de Atuação (lado a lado) ───────────────
+                st.markdown(f"**Destrinchado por Foco de Atuação — Subordinação ({sub_metric})**")
+                st.caption("Cada linha representa um segmento. Solis à esquerda, Mercado à direita. Cores compartilhadas por segmento.")
+                col_solis, col_mkt = st.columns(2)
+
+                with col_solis:
+                    fig_solis = plot_sub_evolution_by_segment(
+                        df, "Data_Posicao", sub_col, "foco_atuacao",
+                        selected_focos_sub, f"Solis Investimentos — {sub_metric}", True
+                    )
+                    if not fig_solis.data:
+                        st.info("Sem dados históricos da Solis nos segmentos selecionados.")
+                    else:
+                        st.plotly_chart(fig_solis, use_container_width=True)
+
+                with col_mkt:
+                    fig_mkt = plot_sub_evolution_by_segment(
+                        df, "Data_Posicao", sub_col, "foco_atuacao",
+                        selected_focos_sub, f"Mercado (excl. Solis) — {sub_metric}", False
+                    )
+                    if not fig_mkt.data:
+                        st.info("Sem dados históricos do Mercado nos segmentos selecionados.")
+                    else:
+                        st.plotly_chart(fig_mkt, use_container_width=True)
+
+                st.markdown("---")
+
+                # ── Visão Consolidada ─────────────────────────────────────────────
+                st.markdown(f"**Visão Consolidada — Subordinação ({sub_metric})**")
+                st.caption("Série única para Solis e Mercado, sem destrinchar por segmento.")
+                fig_cons_sub = plot_mean_simple(
+                    df, "Data_Posicao", sub_col,
+                    y_title=sub_metric,
+                    title=f"Subordinação Consolidada — {sub_metric}",
+                )
+                if fig_cons_sub.data:
+                    st.plotly_chart(fig_cons_sub, use_container_width=True)
+                else:
+                    st.info("Sem dados para a visão consolidada.")
+            else:
+                st.info(f"Coluna de subordinação `{sub_col}` não disponível no conjunto de dados.")
