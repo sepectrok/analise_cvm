@@ -287,17 +287,22 @@ def plot_inad_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
 
 
 def plot_sub_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
-                                   sub_col: str, segment_col: str,
+                                   sub_mode: str, segment_col: str,
                                    selected_segments: list, title: str,
                                    is_solis_only: bool) -> go.Figure:
-    """Evolução temporal da subordinação média por segmento (Foco de Atuação)."""
+    """
+    Evolução temporal da subordinação ponderada por segmento (Foco de Atuação).
+
+    sub_mode : 'JR'    → Sub_JR    = Σ(SB) / Σ(SB+MZ+SR)
+               'JR_MZ' → Sub_JR_MZ = Σ(SB+MZ) / Σ(SB+MZ+SR)
+    """
     fig = _build_fig(title, "%")
-    
-    needed = [date_col, sub_col, "gestor", segment_col]
+
+    needed = [date_col, "SB", "MZ", "SR", "gestor", segment_col]
     if any(c not in df_all.columns for c in needed):
         return fig
 
-    df_work = df_all.dropna(subset=[sub_col, date_col, segment_col]).copy()
+    df_work = df_all.dropna(subset=[date_col, segment_col]).copy()
     df_work = df_work[df_work[segment_col].isin(selected_segments)]
     if df_work.empty:
         return fig
@@ -307,7 +312,13 @@ def plot_sub_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
     if df_group.empty:
         return fig
 
-    agg = df_group.groupby([date_col, segment_col])[sub_col].mean().reset_index()
+    # Agrega somas das tranches por data e segmento
+    agg = df_group.groupby([date_col, segment_col])[["SB", "MZ", "SR"]].sum().reset_index()
+    denom = agg["SB"] + agg["MZ"] + agg["SR"]
+    if sub_mode == "JR_MZ":
+        agg["val"] = np.where(denom > 0, (agg["SB"] + agg["MZ"]) / denom * 100, np.nan)
+    else:  # JR
+        agg["val"] = np.where(denom > 0, agg["SB"] / denom * 100, np.nan)
 
     # Paleta sóbria — tons dessaturados, distintos e profissionais
     colors = [
@@ -323,10 +334,10 @@ def plot_sub_evolution_by_segment(df_all: pd.DataFrame, date_col: str,
 
     for seg in selected_segments:
         df_seg = agg[agg[segment_col] == seg].sort_values(date_col)
-        if df_seg.empty:
+        if df_seg.empty or df_seg["val"].isna().all():
             continue
         fig.add_trace(go.Scatter(
-            x=df_seg[date_col], y=df_seg[sub_col],
+            x=df_seg[date_col], y=df_seg["val"],
             mode="lines+markers",
             name=str(seg),
             line=dict(width=3, color=color_map.get(seg)),
@@ -618,18 +629,18 @@ with tab_sub:
         if not selected_focos_sub:
             st.info("Por favor, selecione ao menos um Foco de Atuação para visualizar a evolução temporal.")
         else:
-            # Definir variável com base na métrica selecionada
-            sub_col = "Sub_JR" if sub_metric == "Subordinação Júnior (%)" else "Sub_JR_MZ"
+            # Definir modo com base na métrica selecionada
+            sub_mode = "JR" if sub_metric == "Subordinação Júnior (%)" else "JR_MZ"
 
-            if sub_col in df.columns:
+            if {"SB", "MZ", "SR"}.issubset(df.columns):
                 # ── Destrinchado por Foco de Atuação (lado a lado) ───────────────
                 st.markdown(f"**Destrinchado por Foco de Atuação — Subordinação ({sub_metric})**")
-                st.caption("Cada linha representa um segmento. Solis à esquerda, Mercado à direita. Cores compartilhadas por segmento.")
+                st.caption("Cada linha representa um segmento. Solis à esquerda, Mercado à direita. Subordinação ponderada: Σ(tranche) / Σ(total).")
                 col_solis, col_mkt = st.columns(2)
 
                 with col_solis:
                     fig_solis = plot_sub_evolution_by_segment(
-                        df, "Data_Posicao", sub_col, "foco_atuacao",
+                        df, "Data_Posicao", sub_mode, "foco_atuacao",
                         selected_focos_sub, f"Solis Investimentos — {sub_metric}", True
                     )
                     if not fig_solis.data:
@@ -639,7 +650,7 @@ with tab_sub:
 
                 with col_mkt:
                     fig_mkt = plot_sub_evolution_by_segment(
-                        df, "Data_Posicao", sub_col, "foco_atuacao",
+                        df, "Data_Posicao", sub_mode, "foco_atuacao",
                         selected_focos_sub, f"Mercado (excl. Solis) — {sub_metric}", False
                     )
                     if not fig_mkt.data:
@@ -649,17 +660,35 @@ with tab_sub:
 
                 st.markdown("---")
 
-                # ── Visão Consolidada ─────────────────────────────────────────────
+                # ── Visão Consolidada (ponderada) ─────────────────────────────────
                 st.markdown(f"**Visão Consolidada — Subordinação ({sub_metric})**")
-                st.caption("Série única para Solis e Mercado, sem destrinchar por segmento.")
-                fig_cons_sub = plot_mean_simple(
-                    df, "Data_Posicao", sub_col,
-                    y_title=sub_metric,
-                    title=f"Subordinação Consolidada — {sub_metric}",
-                )
+                st.caption("Série única Solis vs Mercado — subordinação ponderada pelo volume das tranches.")
+
+                fig_cons_sub = _build_fig(f"Subordinação Consolidada — {sub_metric}", "%")
+                is_solis_mask = df["gestor"].str.contains("Solis", case=False, na=False)
+
+                for _label, _mask, _is_sol in [
+                    ("Mercado (excl. Solis)", ~is_solis_mask, False),
+                    ("Solis Investimentos",    is_solis_mask,  True),
+                ]:
+                    _df_g = df[_mask].copy()
+                    if _df_g.empty:
+                        continue
+                    _agg = _df_g.groupby("Data_Posicao")[["SB", "MZ", "SR"]].sum()
+                    _denom = _agg["SB"] + _agg["MZ"] + _agg["SR"]
+                    if sub_mode == "JR_MZ":
+                        _evo = np.where(_denom > 0, (_agg["SB"] + _agg["MZ"]) / _denom * 100, np.nan)
+                    else:
+                        _evo = np.where(_denom > 0, _agg["SB"] / _denom * 100, np.nan)
+                    _evo_s = pd.Series(_evo, index=_agg.index).dropna().sort_index()
+                    if _evo_s.empty:
+                        continue
+                    add_trace_line(fig_cons_sub, _evo_s.index, _evo_s.values,
+                                   _label, is_highlight=_is_sol, hover_fmt=".2f")
+
                 if fig_cons_sub.data:
                     st.plotly_chart(fig_cons_sub, use_container_width=True)
                 else:
                     st.info("Sem dados para a visão consolidada.")
             else:
-                st.info(f"Coluna de subordinação `{sub_col}` não disponível no conjunto de dados.")
+                st.info("Colunas de tranches (SB, MZ, SR) não disponíveis no conjunto de dados.")

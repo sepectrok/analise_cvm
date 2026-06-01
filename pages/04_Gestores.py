@@ -12,7 +12,7 @@ from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, kpi_card, insight_card
 from components.charts import bar_ranking, heatmap_entity_taxa, histogram_taxa
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, add_subordinacao_ponderada
 from utils.formatters import fmt_pct
 
 load_css()
@@ -41,10 +41,10 @@ if "DC" in df_ges.columns:
     agg_dict["DC"] = "sum"
 if "PL_CVM" in df_ges.columns:
     agg_dict["PL_CVM"] = "sum"
-if "Sub_JR" in df_ges.columns:
-    agg_dict["Sub_JR"] = "mean"
-if "Sub_JR_MZ" in df_ges.columns:
-    agg_dict["Sub_JR_MZ"] = "mean"
+# Tranches brutas — necessárias para calcular subordinação ponderada pós-agregação
+for _t in ["SB", "MZ", "SR"]:
+    if _t in df_ges.columns:
+        agg_dict[_t] = "sum"
 
 # CVNP — aging de vencidos
 for _c in ["CVNP"] + CVNP_COLS:
@@ -72,6 +72,9 @@ df_agg = (
     .rename(columns={"cnpj_tratado": "n_fundos"})
     .sort_values("n_fundos", ascending=False)
 )
+
+# Subordinação ponderada: Σ(SB) / Σ(SB+MZ+SR) por gestor
+df_agg = add_subordinacao_ponderada(df_agg, df_ges, groupby_col="gestor")
 
 # Calcula inadimplência ponderada realista: soma(PDD) / soma(DC ou PL)
 if "PDD" in df_agg.columns:

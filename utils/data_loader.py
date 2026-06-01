@@ -165,9 +165,21 @@ def load_inadimplencia() -> pd.DataFrame:
         np.nan,
     )
     df_inad['Valor_PL'] = df_inad['PL_CVM']
-    df_inad["Sub_JR"] = pd.to_numeric(df_inad["Sub_JR"], errors="coerce") * 100
-    df_inad["Sub_JR_MZ"] = pd.to_numeric(df_inad["Sub_JR_MZ"], errors="coerce") * 100
-    
+
+    # Cotas de tranche (valores em R$) — base para calcular subordinação
+    # clip(lower=0): cotas negativas são erro de dados da CVM (ex: fundo com PL negativo
+    # que lança SR negativo). Tratamos como 0 para não distorcer o denominador.
+    for col in ["SB", "MZ", "SR","CLU"]:
+        df_inad[col] = pd.to_numeric(df_inad[col], errors="coerce").fillna(0).clip(lower=0)
+
+    # Subordinação calculada pela fórmula (não usa a coluna pré-calculada do Excel)
+    #   Sub_JR    = SB / (SB + MZ + SR)
+    #   Sub_JR_MZ = (SB + MZ) / (SB + MZ + SR)
+    _denom = df_inad["SB"] + df_inad["MZ"] + df_inad["SR"]
+    df_inad["Sub_JR"]    = np.where(_denom > 0, df_inad["SB"]                      / _denom * 100, np.nan)
+    df_inad["Sub_JR_MZ"] = np.where(_denom > 0, (df_inad["SB"] + df_inad["MZ"]) / _denom * 100, np.nan)
+
+
     # Garantir que colunas CVNP são numéricas
     cols_cvnp_presentes = [c for c in ["CVNP"] + CVNP_COLS if c in df_inad.columns]
     for c in cols_cvnp_presentes:
@@ -175,11 +187,71 @@ def load_inadimplencia() -> pd.DataFrame:
 
     # Tratamento da data
     df_inad["Data_Posicao"] = pd.to_datetime(df_inad["Data_Posicao"], errors="coerce")
-    
+
     cols_base = ["Data_Posicao", "cnpj_str", "taxa_inadimplencia", "taxa_inadimplencia_pl",
-                 "PDD", "DC", "PL_CVM", "Valor_PL", "Situacao", "Check_PL", "Sub_JR", "Sub_JR_MZ"]
+                 "PDD", "DC", "PL_CVM", "Valor_PL", "Situacao", "Check_PL",
+                 "Sub_JR", "Sub_JR_MZ",
+                 "SB", "MZ", "SR","CLU"]      # tranches brutas para agregação ponderada
     cols_final = cols_base + cols_cvnp_presentes
-    return df_inad[cols_final]
+    return df_inad[[c for c in cols_final if c in df_inad.columns]]
+
+
+# ─── Subordinação ponderada por volume de tranche ─────────────────────────────
+
+def calc_subordinacao_ponderada(df: pd.DataFrame) -> dict:
+    """
+    Calcula Sub_JR e Sub_JR_MZ ponderados pelo volume financeiro das tranches.
+
+    Fórmula:
+        Sub_JR    = Σ(SB)       / Σ(SB + MZ + SR)  × 100
+        Sub_JR_MZ = Σ(SB + MZ) / Σ(SB + MZ + SR)  × 100
+
+    Requer colunas 'SB', 'MZ', 'SR' no DataFrame (valores em R$).
+    Retorna NaN quando denominador é zero ou colunas ausentes.
+    """
+    needed = {"SB", "MZ", "SR"}
+    if not needed.issubset(df.columns):
+        return {"Sub_JR": np.nan, "Sub_JR_MZ": np.nan}
+    denom = df["SB"].sum() + df["MZ"].sum() + df["SR"].sum()
+    if denom == 0:
+        return {"Sub_JR": np.nan, "Sub_JR_MZ": np.nan}
+    return {
+        "Sub_JR":    df["SB"].sum() / denom * 100,
+        "Sub_JR_MZ": (df["SB"].sum() + df["MZ"].sum()) / denom * 100,
+    }
+
+
+def add_subordinacao_ponderada(df_agg: pd.DataFrame,
+                               df_raw: pd.DataFrame,
+                               groupby_col: str) -> pd.DataFrame:
+    """
+    Adiciona colunas Sub_JR e Sub_JR_MZ ponderadas a um DataFrame já agregado.
+
+    Parâmetros
+    ----------
+    df_agg      : DataFrame agregado (uma linha por grupo)
+    df_raw      : DataFrame com linhas individuais de fundos (contém SB, MZ, SR)
+    groupby_col : coluna de agrupamento (ex: 'gestor', 'administrador', 'foco_atuacao')
+
+    Retorna df_agg com colunas Sub_JR e Sub_JR_MZ calculadas corretamente.
+    """
+    needed = {"SB", "MZ", "SR", groupby_col}
+    if not needed.issubset(df_raw.columns):
+        df_agg = df_agg.copy()
+        df_agg["Sub_JR"]    = np.nan
+        df_agg["Sub_JR_MZ"] = np.nan
+        return df_agg
+
+    sub_sums = df_raw.groupby(groupby_col)[["SB", "MZ", "SR"]].sum()
+    denom = sub_sums["SB"] + sub_sums["MZ"] + sub_sums["SR"]
+    sub_sums["Sub_JR"]    = np.where(denom > 0, sub_sums["SB"]                        / denom * 100, np.nan)
+    sub_sums["Sub_JR_MZ"] = np.where(denom > 0, (sub_sums["SB"] + sub_sums["MZ"]) / denom * 100, np.nan)
+
+    df_agg = df_agg.copy()
+    df_agg["Sub_JR"]    = df_agg[groupby_col].map(sub_sums["Sub_JR"])
+    df_agg["Sub_JR_MZ"] = df_agg[groupby_col].map(sub_sums["Sub_JR_MZ"])
+    return df_agg
+
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_df_fidc() -> pd.DataFrame:

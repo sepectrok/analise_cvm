@@ -60,7 +60,7 @@ st.markdown('<div class="section-label">Exportar Dados</div>', unsafe_allow_html
 export_cols = (
     ["cnpj_tratado", "nome_fundo", "foco_atuacao", "administrador", "gestor",
      "data_regulamento", "Valor_PL", "Valor_PL_Medio"] + TAXA_COLS +
-    ["taxa_inadimplencia", "PDD", "DC", "Sub_JR", "Sub_JR_MZ", "CVNP"] + CVNP_COLS
+    ["taxa_inadimplencia", "PDD", "DC", "CLU", "SB", "MZ", "SR", "Sub_JR", "Sub_JR_MZ", "CVNP"] + CVNP_COLS
 )
 export_cols = [c for c in export_cols if c in df_view.columns]
 df_export = df_view[export_cols].copy()
@@ -76,6 +76,10 @@ df_export.rename(columns={
     "taxa_inadimplencia": "Inadimplência PDD/DC (%)",
     "PDD":               "PDD (R$)",
     "DC":                "DC (R$)",
+    "CLU":               "Cota Única (R$)",
+    "SB":                "Subordinada (R$)",
+    "MZ":                "Mezanino (R$)",
+    "SR":                "Sênior (R$)",
     "Sub_JR":            "Subordinação Júnior (%)",
     "Sub_JR_MZ":         "Subordinação Júnior+Mezzanino (%)",
     "CVNP":              "Credito Vencido Nao Pago - CVNP (R$)",

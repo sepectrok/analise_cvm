@@ -11,7 +11,7 @@ from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
 from components.charts import bar_ranking, histogram_taxa
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, add_subordinacao_ponderada
 
 load_css()
 df_full = build_df_fidc()
@@ -40,10 +40,10 @@ if "DC" in df_adm.columns:
     agg_dict["DC"] = "sum"
 if "PL_CVM" in df_adm.columns:
     agg_dict["PL_CVM"] = "sum"
-if "Sub_JR" in df_adm.columns:
-    agg_dict["Sub_JR"] = "mean"
-if "Sub_JR_MZ" in df_adm.columns:
-    agg_dict["Sub_JR_MZ"] = "mean"
+# Tranches brutas — necessárias para calcular subordinação ponderada pós-agregação
+for _t in ["SB", "MZ", "SR"]:
+    if _t in df_adm.columns:
+        agg_dict[_t] = "sum"
 
 if "taxa_administracao" in df_adm.columns and "Valor_PL" in df_adm.columns:
     df_adm = df_adm.copy()
@@ -66,6 +66,9 @@ df_agg = (
     .rename(columns={"cnpj_tratado": "n_fundos"})
     .sort_values("n_fundos", ascending=False)
 )
+
+# Subordinação ponderada: Σ(SB) / Σ(SB+MZ+SR) por administrador
+df_agg = add_subordinacao_ponderada(df_agg, df_adm, groupby_col="administrador")
 
 # Calcula inadimplência ponderada realista: soma(PDD) / soma(DC ou PL)
 if "PDD" in df_agg.columns:

@@ -28,6 +28,10 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
     if "taxa_inadimplencia" in df.columns: display_cols.append("taxa_inadimplencia")
     if "PDD" in df.columns: display_cols.append("PDD")
     if "DC" in df.columns: display_cols.append("DC")
+    if "CLU" in df.columns: display_cols.append("CLU")
+    if "SB" in df.columns: display_cols.append("SB")
+    if "MZ" in df.columns: display_cols.append("MZ")
+    if "SR" in df.columns: display_cols.append("SR")
     if "Sub_JR" in df.columns: display_cols.append("Sub_JR")
     if "Sub_JR_MZ" in df.columns: display_cols.append("Sub_JR_MZ")
     if "CVNP" in df.columns: display_cols.append("CVNP")
@@ -45,6 +49,10 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
         "taxa_inadimplencia": "Inadimplência (PDD/DC)",
         "PDD":                "PDD (R$)",
         "DC":                 "DC (R$)",
+        "CLU":                "Cota Única (R$)",
+        "SB":                 "Subordinada (R$)",
+        "MZ":                 "Mezanino (R$)",
+        "SR":                 "Sênior (R$)",
         "Sub_JR":             "Sub. Júnior (%)",
         "Sub_JR_MZ":          "Sub. Mez+Jr (%)",
         "CVNP":               "CVNP Total (R$)",
@@ -87,6 +95,14 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
         col_cfg["PDD (R$)"] = st.column_config.NumberColumn("PDD (R$)", format="R$ %d", width="medium")
     if "DC (R$)" in df_disp.columns:
         col_cfg["DC (R$)"] = st.column_config.NumberColumn("DC (R$)", format="R$ %d", width="medium")
+    if "Cota Única (R$)" in df_disp.columns:
+        col_cfg["Cota Única (R$)"] = st.column_config.NumberColumn("Cota Única (R$)", format="R$ %d", width="medium")
+    if "Subordinada (R$)" in df_disp.columns:
+        col_cfg["Subordinada (R$)"] = st.column_config.NumberColumn("Subordinada (R$)", format="R$ %d", width="medium")
+    if "Mezanino (R$)" in df_disp.columns:
+        col_cfg["Mezanino (R$)"] = st.column_config.NumberColumn("Mezanino (R$)", format="R$ %d", width="medium")
+    if "Sênior (R$)" in df_disp.columns:
+        col_cfg["Sênior (R$)"] = st.column_config.NumberColumn("Sênior (R$)", format="R$ %d", width="medium")
     if "Sub. Júnior (%)" in df_disp.columns:
         col_cfg["Sub. Júnior (%)"] = st.column_config.NumberColumn("Sub. Júnior", format="%.2f%%", width="small")
     if "Sub. Mez+Jr (%)" in df_disp.columns:

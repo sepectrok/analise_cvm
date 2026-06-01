@@ -80,11 +80,19 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
             med_inad_mercado = (df_mercado["PDD"].sum() / sum_dc_mkt * 100)
             if med_inad_mercado > 100: med_inad_mercado = 100.0
 
-    med_sub_jr_solis = df_solis["Sub_JR"].mean() if "Sub_JR" in df_solis.columns else np.nan
-    med_sub_jr_mercado = df_mercado["Sub_JR"].mean() if "Sub_JR" in df_mercado.columns else np.nan
+    # Subordinação ponderada por volume de tranche (Sub_JR = ΣSB / Σ(SB+MZ+SR))
+    def _sub_pond(df_: pd.DataFrame):
+        """Retorna (sub_jr, sub_jr_mz) ponderados ou NaN."""
+        if not {"SB", "MZ", "SR"}.issubset(df_.columns):
+            return np.nan, np.nan
+        denom = df_["SB"].sum() + df_["MZ"].sum() + df_["SR"].sum()
+        if denom == 0:
+            return np.nan, np.nan
+        return (df_["SB"].sum() / denom * 100,
+                (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100)
 
-    med_sub_jr_mz_solis = df_solis["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df_solis.columns else np.nan
-    med_sub_jr_mz_mercado = df_mercado["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df_mercado.columns else np.nan
+    med_sub_jr_solis,    med_sub_jr_mz_solis    = _sub_pond(df_solis)
+    med_sub_jr_mercado,  med_sub_jr_mz_mercado  = _sub_pond(df_mercado)
 
     pdd_solis    = df_solis["PDD"].sum()    if "PDD"  in df_solis.columns   else 0
     cvnp_solis   = df_solis["CVNP"].sum()   if "CVNP" in df_solis.columns   else 0
@@ -197,8 +205,17 @@ def render_general_kpis(df: pd.DataFrame):
     # PDD e CVNP: média por fundo no painel de mercado
     med_pdd  = df["PDD"].mean()  if "PDD"  in df.columns else np.nan
     med_cvnp = df["CVNP"].mean() if "CVNP" in df.columns else np.nan
-    med_sub_jr    = df["Sub_JR"].mean()    if "Sub_JR"    in df.columns else np.nan
-    med_sub_jr_mz = df["Sub_JR_MZ"].mean() if "Sub_JR_MZ" in df.columns else np.nan
+    # Subordinação ponderada por volume de tranche
+    def _sub_pond_g(df_: pd.DataFrame):
+        if not {"SB", "MZ", "SR"}.issubset(df_.columns):
+            return np.nan, np.nan
+        denom = df_["SB"].sum() + df_["MZ"].sum() + df_["SR"].sum()
+        if denom == 0:
+            return np.nan, np.nan
+        return (df_["SB"].sum() / denom * 100,
+                (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100)
+
+    med_sub_jr, med_sub_jr_mz = _sub_pond_g(df)
 
     aum_total = df["Valor_PL"].sum() if "Valor_PL" in df.columns else 0
 

@@ -508,24 +508,40 @@ with tab4:
 
 with tab5:
     st.markdown('<div class="section-label">Subordinação por Segmento | Solis vs Mercado</div>', unsafe_allow_html=True)
-    st.caption("Comparativo da subordinação média (simples) entre a carteira Solis e o Mercado geral por segmento.")
+    st.caption("Comparativo da subordinação ponderada por volume (Σ tranche / Σ denominador) entre Solis e Mercado por segmento.")
 
     subtab_jr, subtab_jrmz = st.tabs(["Subordinação Jr", "Subordinação Jr + Mez"])
 
     with subtab_jr:
-        st.caption("Média simples da cota Subordinada Júnior (%) por fundo.")
-        if "Sub_JR" in df.columns and df["Sub_JR"].notna().any():
+        st.caption("Subordinação Jr ponderada por volume: Σ(SB) / Σ(SB+MZ+SR) × 100, por foco de atuação.")
+        if {"SB", "MZ", "SR"}.issubset(df.columns) and df["SB"].any():
             is_solis = df["gestor"].str.contains("Solis", case=False, na=False)
             df_solis = df[is_solis]
             df_mercado = df[~is_solis]
 
-            solis_means = df_solis.groupby("foco_atuacao")["Sub_JR"].mean().to_dict() if not df_solis.empty else {}
-            mercado_means_series = df_mercado.groupby("foco_atuacao")["Sub_JR"].mean().dropna() if not df_mercado.empty else pd.Series(dtype=float)
-            mercado_means = mercado_means_series.to_dict()
-            focos = mercado_means_series.sort_values(ascending=True).index.tolist()
+            def _sub_jr_by_foco(df_g):
+                """Subordinação Jr ponderada: Σ(SB) / Σ(SB+MZ+SR) por foco."""
+                if df_g.empty:
+                    return {}
+                agg = df_g.groupby("foco_atuacao")[["SB", "MZ", "SR"]].sum()
+                denom = agg["SB"] + agg["MZ"] + agg["SR"]
+                result = np.where(denom > 0, agg["SB"] / denom * 100, np.nan)
+                return dict(zip(agg.index, result))
 
-            mkt_mean = df_mercado["Sub_JR"].mean() if not df_mercado.empty else np.nan
-            solis_mean = df_solis["Sub_JR"].mean() if not df_solis.empty else np.nan
+            solis_means = _sub_jr_by_foco(df_solis)
+            mercado_means = _sub_jr_by_foco(df_mercado)
+            mercado_means_series = pd.Series(mercado_means).dropna().sort_values(ascending=True)
+            focos = mercado_means_series.index.tolist()
+
+            # Médias globais ponderadas (linha de referência nos gráficos)
+            def _sub_jr_total(df_g):
+                if df_g.empty:
+                    return np.nan
+                denom = df_g["SB"].sum() + df_g["MZ"].sum() + df_g["SR"].sum()
+                return df_g["SB"].sum() / denom * 100 if denom > 0 else np.nan
+
+            mkt_mean   = _sub_jr_total(df_mercado)
+            solis_mean = _sub_jr_total(df_solis)
 
             if focos:
                 import plotly.graph_objects as go
@@ -615,19 +631,35 @@ with tab5:
             st.info("Dados de Subordinação Jr não disponíveis para os segmentos filtrados.")
 
     with subtab_jrmz:
-        st.caption("Média simples da cota Subordinada Júnior + Mezanino (%) por fundo.")
-        if "Sub_JR_MZ" in df.columns and df["Sub_JR_MZ"].notna().any():
+        st.caption("Subordinação Jr+Mez ponderada por volume: Σ(SB+MZ) / Σ(SB+MZ+SR) × 100, por foco de atuação.")
+        if {"SB", "MZ", "SR"}.issubset(df.columns) and df["SB"].any():
             is_solis = df["gestor"].str.contains("Solis", case=False, na=False)
             df_solis = df[is_solis]
             df_mercado = df[~is_solis]
 
-            solis_means_mz = df_solis.groupby("foco_atuacao")["Sub_JR_MZ"].mean().to_dict() if not df_solis.empty else {}
-            mercado_means_mz_series = df_mercado.groupby("foco_atuacao")["Sub_JR_MZ"].mean().dropna() if not df_mercado.empty else pd.Series(dtype=float)
-            mercado_means_mz = mercado_means_mz_series.to_dict()
-            focos_mz = mercado_means_mz_series.sort_values(ascending=True).index.tolist()
+            def _sub_jrmz_by_foco(df_g):
+                """Subordinação Jr+Mez ponderada: Σ(SB+MZ) / Σ(SB+MZ+SR) por foco."""
+                if df_g.empty:
+                    return {}
+                agg = df_g.groupby("foco_atuacao")[["SB", "MZ", "SR"]].sum()
+                denom = agg["SB"] + agg["MZ"] + agg["SR"]
+                result = np.where(denom > 0, (agg["SB"] + agg["MZ"]) / denom * 100, np.nan)
+                return dict(zip(agg.index, result))
 
-            mkt_mean_mz = df_mercado["Sub_JR_MZ"].mean() if not df_mercado.empty else np.nan
-            solis_mean_mz = df_solis["Sub_JR_MZ"].mean() if not df_solis.empty else np.nan
+            solis_means_mz = _sub_jrmz_by_foco(df_solis)
+            mercado_means_mz = _sub_jrmz_by_foco(df_mercado)
+            mercado_means_mz_series = pd.Series(mercado_means_mz).dropna().sort_values(ascending=True)
+            focos_mz = mercado_means_mz_series.index.tolist()
+
+            # Médias globais ponderadas
+            def _sub_jrmz_total(df_g):
+                if df_g.empty:
+                    return np.nan
+                denom = df_g["SB"].sum() + df_g["MZ"].sum() + df_g["SR"].sum()
+                return (df_g["SB"].sum() + df_g["MZ"].sum()) / denom * 100 if denom > 0 else np.nan
+
+            mkt_mean_mz   = _sub_jrmz_total(df_mercado)
+            solis_mean_mz = _sub_jrmz_total(df_solis)
 
             if focos_mz:
                 import plotly.graph_objects as go
