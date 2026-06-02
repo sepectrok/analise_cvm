@@ -35,7 +35,7 @@ df_seg.columns = ["foco_atuacao"] + [
 ] + ["n_fundos"]
 
 st.markdown("---")
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Taxas por Segmento", "Boxplot", "Tabela", "Inadimplência", "Subordinação", "Aging de Vencidos"])
+tab1, tab2, tab4, tab5, tab6 = st.tabs(["Taxas por Segmento", "Boxplot", "Inadimplência", "Subordinação", "Aging de Vencidos"])
 
 with tab1:
     col_sel = st.selectbox(
@@ -75,7 +75,7 @@ with tab1:
             x=[mercado_means.get(f, np.nan) for f in focos],
             name="Mercado",
             orientation="h",
-            marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+            marker=dict(color="rgba(137,155,183,0.7)", line=dict(color="#899BB7", width=1)),
             hovertemplate="<b>%{y}</b><br>Mercado: %{x:.3f}%<extra></extra>",
         ))
         fig.add_trace(go.Bar(
@@ -83,7 +83,7 @@ with tab1:
             x=[solis_means.get(f, np.nan) for f in focos],
             name="Solis Investimentos",
             orientation="h",
-            marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+            marker=dict(color="rgba(255,195,106,0.85)", line=dict(color="#F89B66", width=1.5)),
             hovertemplate="<b>%{y}</b><br>Solis: %{x:.3f}%<extra></extra>",
         ))
 
@@ -149,7 +149,7 @@ with tab1:
             orientation="h",
             marker=dict(
                 color=df_plot[mean_col],
-                colorscale=[[0, PALETTE["teal"]], [0.5, PALETTE["blue"]], [1, PALETTE["copper"]]],
+                colorscale=[[0, PALETTE["blue"]], [0.5, PALETTE["orange"]], [1, PALETTE["amber"]]],
                 showscale=False,
             ),
             text=[f"{v:.3f}%" for v in df_plot[mean_col]],
@@ -193,23 +193,6 @@ with tab2:
         key="foco_box",
     )
     st.plotly_chart(boxplot_by_group(df, col_box, "foco_atuacao", height=500), use_container_width=True)
-
-with tab3:
-    rows = []
-    for _, seg_row in df_seg.iterrows():
-        r = {"Segmento": seg_row["foco_atuacao"], "Nº Fundos": int(seg_row["n_fundos"])}
-        for c in taxa_cols_avail:
-            mean_val = seg_row.get(f"{c}_mean", np.nan)
-            med_val = seg_row.get(f"{c}_median", np.nan)
-            r[TAXA_LABELS.get(c, c).replace("Taxa de ", "") + " (Média %)"]  = round(mean_val, 4) if pd.notna(mean_val) else np.nan
-            r[TAXA_LABELS.get(c, c).replace("Taxa de ", "") + " (Med. %)"]   = round(med_val, 4) if pd.notna(med_val) else np.nan
-        rows.append(r)
-
-    if rows:
-        df_table = pd.DataFrame(rows).sort_values("Nº Fundos", ascending=False)
-        st.dataframe(df_table, use_container_width=True, hide_index=True)
-    else:
-        st.info("Sem dados para a tabela.")
 
 with tab4:
     st.markdown('<div class="section-label">Inadimplência por Segmento | Solis vs Mercado</div>', unsafe_allow_html=True)
@@ -284,7 +267,7 @@ with tab4:
                     x=[mercado_inad_seg.get(f, np.nan) for f in focos],
                     name="Mercado",
                     orientation="h",
-                    marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+                    marker=dict(color="rgba(137,155,183,0.7)", line=dict(color="#899BB7", width=1)),
                     hovertemplate="<b>%{y}</b><br>Mercado: %{x:.2f}%<extra></extra>",
                 ))
                 fig.add_trace(go.Bar(
@@ -292,7 +275,7 @@ with tab4:
                     x=[solis_inad_seg.get(f, np.nan) for f in focos],
                     name="Solis Investimentos",
                     orientation="h",
-                    marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+                    marker=dict(color="rgba(255,195,106,0.85)", line=dict(color="#F89B66", width=1.5)),
                     hovertemplate="<b>%{y}</b><br>Solis: %{x:.2f}%<extra></extra>",
                 ))
 
@@ -429,7 +412,7 @@ with tab4:
                     x=[mercado_inad_seg_pl.get(f, np.nan) for f in focos_pl],
                     name="Mercado",
                     orientation="h",
-                    marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+                    marker=dict(color="rgba(137,155,183,0.7)", line=dict(color="#899BB7", width=1)),
                     hovertemplate="<b>%{y}</b><br>Mercado: %{x:.2f}%<extra></extra>",
                 ))
                 fig.add_trace(go.Bar(
@@ -437,7 +420,7 @@ with tab4:
                     x=[solis_inad_seg_pl.get(f, np.nan) for f in focos_pl],
                     name="Solis Investimentos",
                     orientation="h",
-                    marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+                    marker=dict(color="rgba(255,195,106,0.85)", line=dict(color="#F89B66", width=1.5)),
                     hovertemplate="<b>%{y}</b><br>Solis: %{x:.2f}%<extra></extra>",
                 ))
 
@@ -556,7 +539,7 @@ with tab5:
                     x=[mercado_means.get(f, np.nan) for f in focos],
                     name="Mercado",
                     orientation="h",
-                    marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+                    marker=dict(color="rgba(137,155,183,0.7)", line=dict(color="#899BB7", width=1)),
                     hovertemplate="<b>%{y}</b><br>Mercado: %{x:.2f}%<extra></extra>",
                 ))
                 fig.add_trace(go.Bar(
@@ -564,7 +547,7 @@ with tab5:
                     x=[solis_means.get(f, np.nan) for f in focos],
                     name="Solis Investimentos",
                     orientation="h",
-                    marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+                    marker=dict(color="rgba(255,195,106,0.85)", line=dict(color="#F89B66", width=1.5)),
                     hovertemplate="<b>%{y}</b><br>Solis: %{x:.2f}%<extra></extra>",
                 ))
 
@@ -674,7 +657,7 @@ with tab5:
                     x=[mercado_means_mz.get(f, np.nan) for f in focos_mz],
                     name="Mercado",
                     orientation="h",
-                    marker=dict(color="rgba(217,119,6,0.7)", line=dict(width=0)),
+                    marker=dict(color="rgba(137,155,183,0.7)", line=dict(color="#899BB7", width=1)),
                     hovertemplate="<b>%{y}</b><br>Mercado: %{x:.2f}%<extra></extra>",
                 ))
                 fig.add_trace(go.Bar(
@@ -682,7 +665,7 @@ with tab5:
                     x=[solis_means_mz.get(f, np.nan) for f in focos_mz],
                     name="Solis Investimentos",
                     orientation="h",
-                    marker=dict(color="rgba(59,130,246,0.85)", line=dict(width=0)),
+                    marker=dict(color="rgba(255,195,106,0.85)", line=dict(color="#F89B66", width=1.5)),
                     hovertemplate="<b>%{y}</b><br>Solis: %{x:.2f}%<extra></extra>",
                 ))
 

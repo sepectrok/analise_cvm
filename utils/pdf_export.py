@@ -21,20 +21,22 @@ from fpdf import FPDF
 from utils.data_loader import TAXA_COLS, TAXA_LABELS
 from utils.formatters import fmt_pct
 
-# ─── Paleta ──────────────────────────────────────────────────────────────────
-C_BG   = (11,  14,  26)
-C_ACC  = (46, 111, 191)
-C_ACC2 = (30, 143, 168)
-C_HI   = (232, 237, 244)
-C_MED  = (139, 150, 168)
-C_ALT  = (21,  29,  46)
+# ─── Paleta Solis v3.0 ───────────────────────────────────────────────────────
+# Fiel ao site solisinvestimentos.com.br
+C_BG   = (16,  36,  50)   # #102432 — azul marinho Solis
+C_ACC  = (62,  91, 125)   # #3E5B7D — azul institucional
+C_ACC2 = (137,155, 183)   # #899BB7 — azul acinzentado
+C_HI   = (255, 255, 255)  # #FFFFFF — branco
+C_MED  = (137, 155, 183)  # #899BB7 — texto secundário
+C_ALT  = (26,  58,  82)   # #1A3A52 — card escuro
 C_WHT  = (255, 255, 255)
-C_DIV  = (30,  45,  69)
+C_DIV  = (42,  64,  96)   # #2A4060 — divisor
+C_WARM = (255, 195, 106)  # #FFC36A — dourado Solis
 
-MPL_COLORS = ["#2E6FBF","#1E8FA8","#B87C4C","#2EAC6D",
-               "#7B5EA7","#E09B2E","#E05252","#5CA8E0",
-               "#A8D8A8","#F0A500"]
-BG_HEX = "#0B0E1A"
+MPL_COLORS = ["#3E5B7D","#FFC36A","#899BB7","#F89B66",
+               "#E8EDF1","#10B981","#2A4060","#FFD4A0",
+               "#1A3A52","#EF4444"]
+BG_HEX = "#102432"
 
 
 # ─── Matplotlib helpers ───────────────────────────────────────────────────────
@@ -42,9 +44,9 @@ BG_HEX = "#0B0E1A"
 def _mpl_defaults():
     plt.rcParams.update({
         "figure.facecolor": BG_HEX, "axes.facecolor": BG_HEX,
-        "axes.edgecolor": "#1E2D45", "axes.labelcolor": "#8B96A8",
-        "text.color": "#E8EDF4", "xtick.color": "#8B96A8",
-        "ytick.color": "#8B96A8", "grid.color": "#1E2D45",
+        "axes.edgecolor": "#2A4060", "axes.labelcolor": "#899BB7",
+        "text.color": "#FFFFFF", "xtick.color": "#899BB7",
+        "ytick.color": "#899BB7", "grid.color": "#2A4060",
         "grid.linewidth": 0.5, "font.family": "sans-serif", "font.size": 9,
     })
 
@@ -188,17 +190,19 @@ class FIDCReport(FPDF):
         self.set_font(self._ff, style, size)
 
     def header(self):
-        # Fundo escuro em todas as páginas
+        # Fundo azul marinho Solis em todas as páginas
         self.set_fill_color(*C_BG)
         self.rect(0, 0, 210, 297, "F")
         if self.page_no() == 1:
             return
-        # Barra de cabeçalho
-        self.set_fill_color(*C_BG)
+        # Barra de cabeçalho com acento dourado
+        self.set_fill_color(*C_ALT)
         self.rect(0, 0, 210, 11, "F")
+        self.set_fill_color(*C_WARM)
+        self.rect(0, 0, 210, 1.5, "F")  # linha dourada no topo
         self.set_y(3)
         self._f("B", 7.5)
-        self.set_text_color(*C_ACC)
+        self.set_text_color(*C_WARM)
         self.cell(0, 5, "Análise de FIDCs — Dados  ·  Benchmarking Institucional de Taxas")
         self.set_y(13)
 
@@ -274,12 +278,13 @@ class FIDCReport(FPDF):
 def _capa(pdf: FIDCReport):
     pdf.add_page()
     # Barra superior
-    pdf.set_fill_color(*C_ACC)
+    # Barra superior dourada (acento quente Solis)
+    pdf.set_fill_color(*C_WARM)
     pdf.rect(0, 0, 210, 4, "F")
     # Título
     pdf.set_y(56)
     pdf._f("B", 30)
-    pdf.set_text_color(*C_ACC)
+    pdf.set_text_color(*C_WARM)  # título em dourado
     pdf.cell(0, 16, "Análise de FIDCs — Dados", align="C", ln=True)
     pdf.ln(1)
     pdf._f("", 13)
@@ -338,7 +343,8 @@ def _capa(pdf: FIDCReport):
     pdf.cell(0, 4,
         "Extração automatizada via LLM (GPT-4o-mini)  ·  Uso interno  ·"
         "  Não constitui recomendação de investimento", align="C", ln=False)
-    pdf.set_fill_color(*C_ACC)
+    # Barra inferior dourada
+    pdf.set_fill_color(*C_WARM)
     pdf.rect(0, 293, 210, 4, "F")
 
 

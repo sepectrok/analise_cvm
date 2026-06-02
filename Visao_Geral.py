@@ -1,12 +1,9 @@
 """
 Solis Investimentos — Benchmarking Institucional
-Main Entry Point
+Visão Geral — Design System v3.0
 """
 
 import streamlit as st
-
-
-# ─── Shared helpers (import after set_page_config) ───────────────────────────
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -27,46 +24,75 @@ filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
 # ─── Divisão Solis vs Mercado ─────────────────────────────────────────────────
-is_solis = df['gestor'].str.contains('Solis', case=False, na=False)
-df_solis = df[is_solis]
+is_solis  = df['gestor'].str.contains('Solis', case=False, na=False)
+df_solis  = df[is_solis]
 df_mercado = df[~is_solis]
 
-# ─── Institutional Header ────────────────────────────────────────────────────
+# ─── Institutional Header ─────────────────────────────────────────────────────
 institutional_header(
     "Benchmarking Institucional",
     f"Análise comparativa · {len(df)} fundos · Mercado vs Solis Investimentos"
 )
 
-# ─── Solis vs Mercado KPIs ────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO ESCURA — Posicionamento Solis
+# ═══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="section-label">Posicionamento Solis</div>', unsafe_allow_html=True)
 render_executive_kpis(df_solis, df_mercado)
 
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-# ─── Market Overview KPIs ────────────────────────────────────────────────────
-st.markdown('<div class="section-label">Visão Geral do Mercado</div>', unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO CLARA — Visão Geral do Mercado (alternância fundo claro)
+# ═══════════════════════════════════════════════════════════════════════════════
+st.markdown("""
+    <div class="section-label" style="color:var(--accent-primary) !important;">
+        Visão Geral do Mercado
+    </div>
+""", unsafe_allow_html=True)
+
 render_general_kpis(df)
 
-st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
 
-# ─── Gráfico 1: Market Share & Segmentos ────────────────────────────────────
-st.markdown('<div class="section-label">Market Share & Segmentos</div>', unsafe_allow_html=True)
+st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO ESCURA — Market Share & Segmentos
+# ═══════════════════════════════════════════════════════════════════════════════
+st.markdown('<div class="section-label">Market Share &amp; Segmentos</div>', unsafe_allow_html=True)
 st.plotly_chart(donut_market_share_solis(df_solis, df_mercado, height=450), use_container_width=True)
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+
+st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 st.plotly_chart(bar_foco_comparativo(df_solis, df_mercado, height=450), use_container_width=True)
 
-st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-# ─── Gráfico 2: Distribuição Taxas ────────────────────────────────────────────
-st.markdown('<div class="section-label">Distribuição — Taxa de Gestão (Solis vs Mercado)</div>', unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO CLARA — Distribuição de Taxas (alternância fundo claro)
+# ═══════════════════════════════════════════════════════════════════════════════
+st.markdown("""
+    <div class="section-label" style="color:var(--accent-primary) !important;">
+        Distribuição — Taxa de Gestão (Solis vs Mercado)
+    </div>
+""", unsafe_allow_html=True)
+
 if "taxa_gestao" in df.columns:
-    st.plotly_chart(boxplot_solis_vs_mercado(df_solis, df_mercado, "taxa_gestao", height=420), use_container_width=True)
+    st.plotly_chart(
+        boxplot_solis_vs_mercado(df_solis, df_mercado, "taxa_gestao", height=420),
+        use_container_width=True,
+    )
 else:
     st.info("Sem dados de Taxa de Gestão")
 
 st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-# ─── Rankings ─────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO ESCURA — Rankings
+# ═══════════════════════════════════════════════════════════════════════════════
 st.markdown('<div class="section-label">Rankings</div>', unsafe_allow_html=True)
 
 st.markdown("#### Gestores por Nº de Fundos")
@@ -77,9 +103,11 @@ ges_count = (
     .reset_index(name="n_fundos")
 )
 st.plotly_chart(
-    bar_ranking(ges_count.rename(columns={"n_fundos": "_val", "gestor": "_name"}),
-                "_val", "_name", title="",
-                top_n=15, height=420, is_percent=False, highlight_name="Solis"),
+    bar_ranking(
+        ges_count.rename(columns={"n_fundos": "_val", "gestor": "_name"}),
+        "_val", "_name", title="",
+        top_n=15, height=420, is_percent=False, highlight_name="Solis",
+    ),
     use_container_width=True,
 )
 
@@ -93,16 +121,25 @@ adm_count = (
     .reset_index(name="n_fundos")
 )
 st.plotly_chart(
-    bar_ranking(adm_count.rename(columns={"n_fundos": "_val", "administrador": "_name"}),
-                "_val", "_name", title="",
-                top_n=15, height=420, is_percent=False, highlight_name="Solis"),
+    bar_ranking(
+        adm_count.rename(columns={"n_fundos": "_val", "administrador": "_name"}),
+        "_val", "_name", title="",
+        top_n=15, height=420, is_percent=False, highlight_name="Solis",
+    ),
     use_container_width=True,
 )
 
 st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
+st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-# ─── Ranking por Taxa Média ──────────────────────────────────────────────────
-st.markdown('<div class="section-label">Ranking por Taxa Média</div>', unsafe_allow_html=True)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEÇÃO CLARA — Ranking por Taxa Média (alternância)
+# ═══════════════════════════════════════════════════════════════════════════════
+st.markdown("""
+    <div class="section-label" style="color:var(--accent-primary) !important;">
+        Ranking por Taxa Média
+    </div>
+""", unsafe_allow_html=True)
 
 entidade_opt = st.radio(
     "Visão:",
@@ -113,11 +150,11 @@ entidade_opt = st.radio(
 if "Administradores" in entidade_opt:
     ent_col = "administrador"
     tax_col = "taxa_administracao"
-    title = "Taxa de Administração Média"
+    title   = "Taxa de Administração Média"
 else:
     ent_col = "gestor"
     tax_col = "taxa_gestao"
-    title = "Taxa de Gestão Média"
+    title   = "Taxa de Gestão Média"
 
 df_ent = df.dropna(subset=[ent_col, tax_col])
 if not df_ent.empty:
@@ -134,18 +171,29 @@ if not df_ent.empty:
     df_bar = df_agg.copy()
     df_bar["_name"] = df_bar[ent_col].str[:40]
 
-    fig = bar_ranking(df_bar.rename(columns={tax_col: "_val"}),
-                      "_val", "_name", title=title,
-                      top_n=top_n, highlight_name="Solis")
+    fig = bar_ranking(
+        df_bar.rename(columns={tax_col: "_val"}),
+        "_val", "_name", title=title,
+        top_n=top_n, highlight_name="Solis",
+    )
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info(f"Nenhum dado encontrado para {tax_col}.")
 
 st.markdown("<div style='height:32px'></div>", unsafe_allow_html=True)
 
-# ─── Footer ───────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# FOOTER ANIMADO — fiel ao site solisinvestimentos.com.br
+# ═══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
-<div style='text-align:center; padding:24px 0 12px; color:var(--text-dim); font-size:0.65rem; letter-spacing:0.5px;'>
-    Solis Investimentos · Plataforma de Inteligência Competitiva
+<div class="solis-footer">
+    <div class="footer-content">
+        <div class="footer-logo-text">SOLIS INVESTIMENTOS</div>
+        <div class="footer-divider"></div>
+        <div class="footer-line">Plataforma de Inteligência Competitiva · FIDCs</div>
+        <div class="footer-line" style="opacity:0.55; font-size:0.65rem;">
+            Fonte: Regulamentos CVM / FNET · Uso interno · Não constitui recomendação de investimento
+        </div>
+    </div>
 </div>
 """, unsafe_allow_html=True)

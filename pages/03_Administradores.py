@@ -95,13 +95,16 @@ if "taxa_administracao" in df_agg.columns:
 
 st.markdown("---")
 
+col_min_global, _ = st.columns([1, 2])
+with col_min_global:
+    min_fundos = st.slider("Nº mínimo de fundos", 1, 50, 2, key="adm_min_global")
+
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs(
     ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação"]
 )
 
 with tab1:
-    min_fundos = st.slider("Nº mínimo de fundos", 1, 10, 2, key="adm_min")
     df_rank = df_agg[df_agg["n_fundos"] >= min_fundos].sort_values("taxa_administracao")
     render_entity_ranking(df_rank, "administrador", "n_fundos", key="adm_rank", taxa_col_to_show="taxa_administracao")
 
@@ -203,8 +206,6 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-label">Inadimplência Média por Administrador</div>', unsafe_allow_html=True)
 
-    min_f_inad = st.slider("Nº mínimo de fundos para rankear", 1, 50, 1, key="adm_min_inad")
-
     subtab_dc, subtab_pl = st.tabs(["📊 PDD / DC", "📉 PDD / PL"])
 
     # ── Sub-tab: PDD / DC ─────────────────────────────────────────────────────
@@ -215,7 +216,7 @@ with tab4:
         )
         if "taxa_inadimplencia" in df_agg.columns and df_agg["taxa_inadimplencia"].notna().any():
             df_inad_dc = (
-                df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= min_fundos)]
                 .sort_values("taxa_inadimplencia", ascending=True)
             )
             st.plotly_chart(
@@ -245,7 +246,7 @@ with tab4:
         )
         if "taxa_inadimplencia_pl" in df_agg.columns and df_agg["taxa_inadimplencia_pl"].notna().any():
             df_inad_pl = (
-                df_agg[df_agg["taxa_inadimplencia_pl"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                df_agg[df_agg["taxa_inadimplencia_pl"].notna() & (df_agg["n_fundos"] >= min_fundos)]
                 .sort_values("taxa_inadimplencia_pl", ascending=True)
             )
             st.plotly_chart(
@@ -270,15 +271,13 @@ with tab4:
 with tab5:
     st.markdown('<div class="section-label">Subordinação Média por Administrador</div>', unsafe_allow_html=True)
 
-    min_f_sub = st.slider("Nº mínimo de fundos para rankear", 1, 50, 1, key="adm_min_sub")
-
     subtab_jr, subtab_jrmz = st.tabs(["Subordinação Jr", "Subordinação Jr + Mez"])
 
     with subtab_jr:
         st.caption("Média simples da cota Subordinada Júnior (%) por fundo, agrupada por administrador.")
         if "Sub_JR" in df_agg.columns and df_agg["Sub_JR"].notna().any():
             df_sub_jr = (
-                df_agg[df_agg["Sub_JR"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                df_agg[df_agg["Sub_JR"].notna() & (df_agg["n_fundos"] >= min_fundos)]
                 .sort_values("Sub_JR", ascending=False)
             )
             st.plotly_chart(
@@ -304,7 +303,7 @@ with tab5:
         st.caption("Média simples da cota Subordinada Júnior + Mezanino (%) por fundo, agrupada por administrador.")
         if "Sub_JR_MZ" in df_agg.columns and df_agg["Sub_JR_MZ"].notna().any():
             df_sub_jrmz = (
-                df_agg[df_agg["Sub_JR_MZ"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                df_agg[df_agg["Sub_JR_MZ"].notna() & (df_agg["n_fundos"] >= min_fundos)]
                 .sort_values("Sub_JR_MZ", ascending=False)
             )
             st.plotly_chart(

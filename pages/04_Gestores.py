@@ -109,18 +109,17 @@ if "taxa_gestao" in df_agg.columns:
 
 st.markdown("---")
 
-# O detalhamento completo por fundo está exibido na tabela visual ao final da página.
+col_opt_global, col_min_global = st.columns([2, 1])
+with col_min_global:
+    min_f = st.slider("Nº mínimo de fundos", 1, 50, 2, key="ges_min_global")
 
 tab1, tab2, tab3, tab4, tab5, tab_aging = st.tabs(
     ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação", "Aging de Vencidos"]
 )
 
 with tab1:
-    col_opt, col_min = st.columns([2, 1])
-    with col_opt:
+    with col_opt_global:
         rank_metric = st.radio("Ordenar ranking por:", ["Taxa de Gestão", "AuM (Patrimônio Líquido)"], horizontal=True)
-    with col_min:
-        min_f = st.slider("Nº mínimo de fundos", 1, 10, 2, key="ges_min")
 
     if rank_metric == "Taxa de Gestão":
         df_rank = df_agg[df_agg["n_fundos"] >= min_f].sort_values("taxa_gestao")
@@ -244,8 +243,6 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-label">Inadimplência Média por Gestor</div>', unsafe_allow_html=True)
 
-    min_f_inad = st.slider("Nº mínimo de fundos sob gestão", 1, 50, 1, key="ges_min_inad")
-
     subtab_dc, subtab_pl = st.tabs(["📊 PDD / DC", "📉 PDD / PL"])
 
     # ── Sub-tab: PDD / DC ─────────────────────────────────────────────────────
@@ -256,7 +253,7 @@ with tab4:
         )
         if "taxa_inadimplencia" in df_agg.columns and df_agg["taxa_inadimplencia"].notna().any():
             df_inad_dc = (
-                df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                df_agg[df_agg["taxa_inadimplencia"].notna() & (df_agg["n_fundos"] >= min_f)]
                 .sort_values("taxa_inadimplencia", ascending=True)
             )
             st.plotly_chart(
@@ -286,7 +283,7 @@ with tab4:
         )
         if "taxa_inadimplencia_pl" in df_agg.columns and df_agg["taxa_inadimplencia_pl"].notna().any():
             df_inad_pl = (
-                df_agg[df_agg["taxa_inadimplencia_pl"].notna() & (df_agg["n_fundos"] >= min_f_inad)]
+                df_agg[df_agg["taxa_inadimplencia_pl"].notna() & (df_agg["n_fundos"] >= min_f)]
                 .sort_values("taxa_inadimplencia_pl", ascending=True)
             )
             st.plotly_chart(
@@ -311,15 +308,13 @@ with tab4:
 with tab5:
     st.markdown('<div class="section-label">Subordinação Média por Gestor</div>', unsafe_allow_html=True)
 
-    min_f_sub = st.slider("Nº mínimo de fundos para rankear", 1, 50, 1, key="ges_min_sub")
-
     subtab_jr, subtab_jrmz = st.tabs(["Subordinação Jr", "Subordinação Jr + Mez"])
 
     with subtab_jr:
         st.caption("Média simples da cota Subordinada Júnior (%) por fundo, agrupada por gestor.")
         if "Sub_JR" in df_agg.columns and df_agg["Sub_JR"].notna().any():
             df_sub_jr = (
-                df_agg[df_agg["Sub_JR"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                df_agg[df_agg["Sub_JR"].notna() & (df_agg["n_fundos"] >= min_f)]
                 .sort_values("Sub_JR", ascending=False)
             )
             st.plotly_chart(
@@ -345,7 +340,7 @@ with tab5:
         st.caption("Média simples da cota Subordinada Júnior + Mezanino (%) por fundo, agrupada por gestor.")
         if "Sub_JR_MZ" in df_agg.columns and df_agg["Sub_JR_MZ"].notna().any():
             df_sub_jrmz = (
-                df_agg[df_agg["Sub_JR_MZ"].notna() & (df_agg["n_fundos"] >= min_f_sub)]
+                df_agg[df_agg["Sub_JR_MZ"].notna() & (df_agg["n_fundos"] >= min_f)]
                 .sort_values("Sub_JR_MZ", ascending=False)
             )
             st.plotly_chart(
@@ -468,11 +463,10 @@ with tab_aging:
         st.markdown('<div class="section-label">Ranking de CVNP por Gestor</div>', unsafe_allow_html=True)
         st.caption(
             "Crédito Vencido Não Pago total (soma dos fundos) por gestora. "
-            "Solis destacada em azul. Mínimo de fundos aplicável."
+            "Solis destacada em azul. Filtro de mínimo de fundos global aplicável."
         )
 
-        min_f_aging = st.slider("Nº mínimo de fundos sob gestão", 1, 10, 2, key="ges_aging_min")
-        df_aging = df_agg[df_agg["n_fundos"] >= min_f_aging].copy()
+        df_aging = df_agg[df_agg["n_fundos"] >= min_f].copy()
 
         # ── Ranking CVNP total ────────────────────────────────────────────────
         st.plotly_chart(

@@ -1,8 +1,11 @@
-"""Sidebar — Solis Investimentos Platform — Premium v2"""
+"""Sidebar — Solis Investimentos Platform — Design System v3.0
+Paleta fiel ao site solisinvestimentos.com.br
+"""
 
 import streamlit as st
 import pandas as pd
 import os
+import base64
 
 
 def load_css():
@@ -11,7 +14,7 @@ def load_css():
         css = f.read()
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
-    # ── Botão flutuante para abrir/fechar a sidebar ──────────────────────────────
+    # ── Botão flutuante para abrir/fechar a sidebar ──────────────────────────
     import streamlit.components.v1 as components
     components.html("""
     <script>
@@ -19,7 +22,6 @@ def load_css():
         var doc = window.parent.document;
         var win = window.parent;
 
-        // Dispara click compatível com React (event bubbling no root)
         function reactClick(el) {
             el.dispatchEvent(new MouseEvent('click', {
                 bubbles: true, cancelable: true, view: win
@@ -36,9 +38,6 @@ def load_css():
             var clicked = false;
 
             if (sbWidth > 50) {
-                // ── Sidebar ABERTA: procurar botão de fechar ──────────────────
-                // Em Streamlit 1.x, o botão de colapso dentro da sidebar usa
-                // data-testid="baseButton-header"
                 var closeCandidates = [
                     '[data-testid="stSidebar"] [data-testid="baseButton-header"]',
                     '[data-testid="stSidebar"] button[aria-label]',
@@ -56,7 +55,6 @@ def load_css():
                     }
                 }
             } else {
-                // ── Sidebar FECHADA: procurar botão de abrir ──────────────────
                 var openCandidates = [
                     '[data-testid="collapsedControl"] button',
                     '[data-testid="stSidebarCollapsedControl"] button',
@@ -73,7 +71,6 @@ def load_css():
                 }
             }
 
-            // Fallback: atalho de teclado nativo do Streamlit ('[' fecha/abre sidebar)
             if (!clicked) {
                 doc.body.dispatchEvent(new KeyboardEvent('keydown', {
                     key: '[', code: 'BracketLeft', keyCode: 219, which: 219,
@@ -81,7 +78,6 @@ def load_css():
                 }));
             }
 
-            // Atualiza visual do botão após toggle
             setTimeout(updateBtnIcon, 200);
         }
 
@@ -93,7 +89,12 @@ def load_css():
         }
 
         function createToggleBtn() {
-            if (doc.getElementById('_solis_sidebar_toggle')) {
+            var existingBtn = doc.getElementById('_solis_sidebar_toggle');
+            if (existingBtn) {
+                existingBtn.onclick = function(e) {
+                    e.stopPropagation();
+                    toggleSidebar();
+                };
                 updateBtnIcon();
                 return;
             }
@@ -105,24 +106,27 @@ def load_css():
             btn.style.cssText = [
                 'position:fixed', 'top:10px', 'left:10px',
                 'z-index:2147483647', 'width:36px', 'height:36px',
-                'background:#12141E', 'color:#94A3B8',
-                'border:1px solid rgba(148,163,184,0.15)',
+                'background:#1A3A52',
+                'color:#899BB7',
+                'border:1px solid rgba(137,155,183,0.25)',
                 'border-radius:8px', 'font-size:18px', 'cursor:pointer',
                 'display:flex', 'align-items:center', 'justify-content:center',
-                'box-shadow:0 2px 8px rgba(0,0,0,0.4)',
-                'transition:background 0.2s,color 0.2s,border-color 0.2s',
+                'box-shadow:0 2px 12px rgba(16,36,50,0.5)',
+                'transition:all 0.2s ease',
                 'line-height:1'
             ].join(';');
 
             btn.onmouseover = function() {
-                btn.style.background = '#1A1D2B';
-                btn.style.color = '#F1F5F9';
-                btn.style.borderColor = 'rgba(59,130,246,0.3)';
+                btn.style.background = '#3E5B7D';
+                btn.style.color = '#FFC36A';
+                btn.style.borderColor = 'rgba(255,195,106,0.4)';
+                btn.style.boxShadow = '0 2px 12px rgba(255,195,106,0.2)';
             };
             btn.onmouseout = function() {
-                btn.style.background = '#12141E';
-                btn.style.color = '#94A3B8';
-                btn.style.borderColor = 'rgba(148,163,184,0.15)';
+                btn.style.background = '#1A3A52';
+                btn.style.color = '#899BB7';
+                btn.style.borderColor = 'rgba(137,155,183,0.25)';
+                btn.style.boxShadow = '0 2px 12px rgba(16,36,50,0.5)';
             };
             btn.onclick = function(e) {
                 e.stopPropagation();
@@ -137,7 +141,6 @@ def load_css():
         setTimeout(createToggleBtn, 500);
         setTimeout(updateBtnIcon, 1000);
 
-        // Regarante após rerenders do Streamlit
         var obs = new MutationObserver(function() {
             createToggleBtn();
         });
@@ -147,39 +150,72 @@ def load_css():
     """, height=1, scrolling=False)
 
 
+def _get_logo_html() -> str:
+    """Retorna HTML do logo SVG vertical (site oficial) ou PNG fallback."""
+    # 1. Tenta SVG vertical baixado do site
+    base_dir = os.path.dirname(os.path.dirname(__file__))
+    for logo_file in ["logo_solis_vertical.svg", "logo_solis_v.png", "SOLIS_BRANDMARK.png"]:
+        logo_path = os.path.join(base_dir, logo_file)
+        if os.path.exists(logo_path):
+            with open(logo_path, "rb") as f:
+                data = f.read()
+            b64 = base64.b64encode(data).decode()
+            if logo_file.endswith(".svg"):
+                mime = "image/svg+xml"
+                height = "80px"
+            else:
+                mime = "image/png"
+                height = "64px"
+            return (
+                f'<img src="data:{mime};base64,{b64}" '
+                f'style="height:{height}; width:auto; display:block; margin:0 auto 8px; '
+                f'filter:brightness(0) invert(1);" '
+                f'alt="Solis Investimentos" />'
+            )
+
+    # Fallback texto com gradiente
+    return (
+        '<div style="font-family:Figtree,sans-serif; font-weight:700; font-size:1.3rem; '
+        'background:linear-gradient(125deg,#E8EDF1,#F89B66,#FFC36A); '
+        '-webkit-background-clip:text; -webkit-text-fill-color:transparent; '
+        'background-clip:text; display:inline-block; text-align:center; width:100%;">'
+        'SOLIS</div>'
+    )
+
+
 def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
     """Render the sidebar with filters. Returns a dict of active filter values."""
     with st.sidebar:
-        # Logo
-        st.markdown("""
+        # ── Logo SVG vertical (site oficial) ─────────────────────────────────
+        logo_html = _get_logo_html()
+        st.markdown(f"""
         <div class="sidebar-logo">
-            <div class="logo-title">Solis Analytics</div>
+            {logo_html}
             <div class="logo-sub">Inteligência Competitiva · FIDCs</div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="sidebar-section-title">Filtros</div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="sidebar-section-title">Filtros</div>',
+            unsafe_allow_html=True,
+        )
 
         data_base_sel = None
         if show_date_filter and "Data_Posicao" in df.columns:
-            # Pegar datas únicas e ordernar decrescente
             datas = sorted(df["Data_Posicao"].dropna().unique(), reverse=True)
             if datas:
-                # Format to string like "Mar/2026"
                 data_labels = [pd.to_datetime(d).strftime("%b/%Y").capitalize() for d in datas]
                 data_map = dict(zip(data_labels, datas))
-                
                 selected_label = st.selectbox(
                     "Data Base",
                     options=data_labels,
-                    index=0, # Por padrão a mais recente
+                    index=0,
                 )
                 data_base_sel = data_map[selected_label]
 
-        incluir_liquidacao = st.toggle("Incluir fundos em liquidação", value=False)
+        incluir_liquidacao = st.toggle("Incluir fundos em liquidação", value=True)
         filtrar_pl = st.toggle("Apenas fundos com PL Validado (Check PL = OK)", value=False)
 
-        # Foco de Atuação
         focos_disponiveis = sorted(df["foco_atuacao"].dropna().unique().tolist())
         focos = st.multiselect(
             "Segmento",
@@ -188,7 +224,6 @@ def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
             placeholder="Todos",
         )
 
-        # Administrador
         adm_disponiveis = sorted(df["administrador"].dropna().unique().tolist())
         administradores = st.multiselect(
             "Administrador",
@@ -197,7 +232,6 @@ def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
             placeholder="Todos",
         )
 
-        # Gestor
         ges_disponiveis = sorted(df["gestor"].dropna().unique().tolist())
         gestores = st.multiselect(
             "Gestor",
@@ -206,7 +240,7 @@ def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
             placeholder="Todos",
         )
 
-        # Dataset stats
+        # ── Stats ─────────────────────────────────────────────────────────────
         st.markdown("---")
         st.markdown(f"""
         <div class="sidebar-stats">
@@ -231,20 +265,21 @@ def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
 
         st.markdown("---")
         st.markdown("""
-        <div style="font-size:0.6rem; color:var(--text-dim); text-align:center; letter-spacing:0.5px;">
-            Fonte: Regulamentos CVM / FNET
+        <div style="font-size:0.6rem; color:var(--text-muted); text-align:center;
+                    letter-spacing:0.5px; line-height:1.6;">
+            Fonte: Regulamentos CVM / FNET<br>
+            <span style="opacity:0.6;">© Solis Investimentos</span>
         </div>
         """, unsafe_allow_html=True)
 
     filters_dict = {
-        "data_base": data_base_sel,
-        "incluir_liquidacao": incluir_liquidacao,
-        "filtrar_pl": filtrar_pl,
-        "focos": focos,
-        "administradores": administradores,
-        "gestores": gestores,
+        "data_base":           data_base_sel,
+        "incluir_liquidacao":  incluir_liquidacao,
+        "filtrar_pl":          filtrar_pl,
+        "focos":               focos,
+        "administradores":     administradores,
+        "gestores":            gestores,
     }
-
     return filters_dict
 
 

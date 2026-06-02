@@ -1,4 +1,6 @@
-"""Metrics Cards — Solis Investimentos Platform — Premium v2"""
+"""Metrics Cards — Solis Investimentos Platform — Design System v3.0
+Paleta e gradientes fiéis ao site solisinvestimentos.com.br
+"""
 
 import numpy as np
 import pandas as pd
@@ -7,34 +9,63 @@ from utils.data_loader import TAXA_COLS, TAXA_LABELS
 from utils.formatters import fmt_pct, fmt_num
 
 
+# ─── Gradiente de assinatura (banner do site) ─────────────────────────────────
+_GRAD_TITLE = "linear-gradient(125deg, #E8EDF1 0%, #F89B66 59.55%, #FFC36A 97.95%)"
+_GRAD_WARM  = "linear-gradient(135deg, #F89B66, #FFC36A)"
+_GRAD_SOLIS = "linear-gradient(337deg, #3E5B7D 0%, #899BB7 50.33%, #F89B66 80.95%, #FFC36A 97.95%)"
+
+
 def page_header(icon: str, title: str, subtitle: str = ""):
     st.markdown(f"""
     <div class="page-header">
         <span class="icon">{icon}</span>
         <div>
-            <h1>{title}</h1>
-            {"" if not subtitle else f'<p>{subtitle}</p>'}
+            <h1 style="background:{_GRAD_TITLE}; -webkit-background-clip:text;
+                       -webkit-text-fill-color:transparent; background-clip:text;
+                       display:inline-block; margin:0; padding:0;
+                       font-size:1.4rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
+            {"" if not subtitle else f'<p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted); font-weight:300;">{subtitle}</p>'}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 
-def institutional_header(title: str, subtitle: str = "", logo_path: str = "logo_solis_v.png"):
-    import os, base64
+def institutional_header(title: str, subtitle: str = "", logo_path: str = ""):
+    import os
+    import base64
+
     logo_html = ""
-    if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        logo_html = f'<img src="data:image/png;base64,{b64}" style="height:48px; width:auto; filter: brightness(1.1);" />'
-    else:
-        logo_html = '<span style="font-family: Space Grotesk; font-weight:700; font-size:1.2rem; color: var(--accent-primary);">SOLIS</span>'
+    # Tenta SVG vertical primeiro, depois PNG
+    for candidate in [logo_path, "logo_solis_v.png", "SOLIS_BRANDMARK.png"]:
+        if os.path.exists(candidate):
+            with open(candidate, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode()
+            mime = "image/svg+xml" if candidate.endswith(".svg") else "image/png"
+            h = "72px" if candidate.endswith(".svg") else "52px"
+            logo_html = (
+                f'<img src="data:{mime};base64,{b64}" '
+                f'style="height:{h}; width:auto; filter:brightness(1.05);" />'
+            )
+            break
+
+    if not logo_html:
+        logo_html = (
+            '<span style="font-family:Figtree,sans-serif; font-weight:700; '
+            f'font-size:1.3rem; background:{_GRAD_TITLE}; '
+            '-webkit-background-clip:text; -webkit-text-fill-color:transparent; '
+            'background-clip:text; display:inline-block;">SOLIS</span>'
+        )
 
     st.markdown(f"""
     <div class="inst-header">
         <div>{logo_html}</div>
         <div class="header-text">
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
+            <h1 style="background:{_GRAD_TITLE}; -webkit-background-clip:text;
+                       -webkit-text-fill-color:transparent; background-clip:text;
+                       display:inline-block; margin:0; padding:0;
+                       font-size:1.5rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
+            <p style="margin:6px 0 0 0; font-size:0.85rem;
+                      color:var(--text-secondary); font-weight:300;">{subtitle}</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -43,8 +74,8 @@ def institutional_header(title: str, subtitle: str = "", logo_path: str = "logo_
 def kpi_card(label: str, value: str, sub: str = "", delta: str = "",
              delta_up: bool | None = None, card_class: str = "") -> str:
     delta_class = "up" if delta_up else ("down" if delta_up is False else "")
-    delta_html = f'<div class="kpi-delta {delta_class}">{delta}</div>' if delta else ""
-    sub_html = f'<div class="kpi-sub">{sub}</div>' if sub else ""
+    delta_html  = f'<div class="kpi-delta {delta_class}">{delta}</div>' if delta else ""
+    sub_html    = f'<div class="kpi-sub">{sub}</div>' if sub else ""
     return f"""
     <div class="kpi-card {card_class}">
         <div class="kpi-label">{label}</div>
@@ -57,106 +88,106 @@ def kpi_card(label: str, value: str, sub: str = "", delta: str = "",
 
 def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
     """Render the top KPI cards comparing Solis vs Mercado."""
-    n_solis = len(df_solis)
+    n_solis   = len(df_solis)
     n_mercado = len(df_mercado)
 
-    med_gestao_solis = df_solis["taxa_gestao"].mean() if "taxa_gestao" in df_solis.columns else np.nan
-    med_gestao_mercado = df_mercado["taxa_gestao"].mean() if "taxa_gestao" in df_mercado.columns else np.nan
+    med_gestao_solis   = df_solis["taxa_gestao"].mean()   if "taxa_gestao"   in df_solis.columns   else np.nan
+    med_gestao_mercado = df_mercado["taxa_gestao"].mean() if "taxa_gestao"   in df_mercado.columns else np.nan
 
-    med_perf_solis = df_solis["taxa_performance"].mean() if "taxa_performance" in df_solis.columns else np.nan
+    med_perf_solis   = df_solis["taxa_performance"].mean()   if "taxa_performance" in df_solis.columns   else np.nan
     med_perf_mercado = df_mercado["taxa_performance"].mean() if "taxa_performance" in df_mercado.columns else np.nan
 
     med_inad_solis = np.nan
     if "PDD" in df_solis.columns and "DC" in df_solis.columns:
-        sum_dc_solis = df_solis["DC"].sum()
-        if sum_dc_solis > 0:
-            med_inad_solis = (df_solis["PDD"].sum() / sum_dc_solis * 100)
-            if med_inad_solis > 100: med_inad_solis = 100.0
+        sum_dc = df_solis["DC"].sum()
+        if sum_dc > 0:
+            med_inad_solis = min(df_solis["PDD"].sum() / sum_dc * 100, 100.0)
 
     med_inad_mercado = np.nan
     if "PDD" in df_mercado.columns and "DC" in df_mercado.columns:
         sum_dc_mkt = df_mercado["DC"].sum()
         if sum_dc_mkt > 0:
-            med_inad_mercado = (df_mercado["PDD"].sum() / sum_dc_mkt * 100)
-            if med_inad_mercado > 100: med_inad_mercado = 100.0
+            med_inad_mercado = min(df_mercado["PDD"].sum() / sum_dc_mkt * 100, 100.0)
 
-    # Subordinação ponderada por volume de tranche (Sub_JR = ΣSB / Σ(SB+MZ+SR))
     def _sub_pond(df_: pd.DataFrame):
-        """Retorna (sub_jr, sub_jr_mz) ponderados ou NaN."""
         if not {"SB", "MZ", "SR"}.issubset(df_.columns):
             return np.nan, np.nan
         denom = df_["SB"].sum() + df_["MZ"].sum() + df_["SR"].sum()
         if denom == 0:
             return np.nan, np.nan
-        return (df_["SB"].sum() / denom * 100,
-                (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100)
+        return (
+            df_["SB"].sum() / denom * 100,
+            (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100,
+        )
 
-    med_sub_jr_solis,    med_sub_jr_mz_solis    = _sub_pond(df_solis)
-    med_sub_jr_mercado,  med_sub_jr_mz_mercado  = _sub_pond(df_mercado)
+    med_sub_jr_solis,   med_sub_jr_mz_solis   = _sub_pond(df_solis)
+    med_sub_jr_mercado, med_sub_jr_mz_mercado = _sub_pond(df_mercado)
 
-    pdd_solis    = df_solis["PDD"].sum()    if "PDD"  in df_solis.columns   else 0
-    cvnp_solis   = df_solis["CVNP"].sum()   if "CVNP" in df_solis.columns   else 0
+    pdd_solis  = df_solis["PDD"].sum()  if "PDD"  in df_solis.columns else 0
+    cvnp_solis = df_solis["CVNP"].sum() if "CVNP" in df_solis.columns else 0
 
-    def calc_delta(val1, val2):
-        if pd.isna(val1) or pd.isna(val2) or val2 == 0:
+    def calc_delta(v1, v2):
+        if pd.isna(v1) or pd.isna(v2) or v2 == 0:
             return None
-        return val1 > val2
+        return v1 > v2
 
-    aum_solis = df_solis["Valor_PL"].sum() if "Valor_PL" in df_solis.columns else 0
+    aum_solis   = df_solis["Valor_PL"].sum()   if "Valor_PL" in df_solis.columns   else 0
     aum_mercado = df_mercado["Valor_PL"].sum() if "Valor_PL" in df_mercado.columns else 0
 
     def fmt_aum(val):
-        if pd.isna(val): return "R$ 0.00"
-        if val >= 1e9: return f"R$ {val/1e9:.2f} Bi"
-        if val >= 1e6: return f"R$ {val/1e6:.2f} Mi"
+        if pd.isna(val): return "R$ 0,00"
+        if val >= 1e9:   return f"R$ {val/1e9:.2f} Bi"
+        if val >= 1e6:   return f"R$ {val/1e6:.2f} Mi"
         return f"R$ {val:,.2f}"
 
+    # ── Linha 1 (4 cards) ────────────────────────────────────────────────────
     cards = [
         kpi_card("Fundos Geridos", str(n_solis), "Solis Investimentos",
-                 delta=f"vs {n_mercado} no mercado", delta_up=None, card_class="kpi-solis"),
-        kpi_card("AuM (Patrimônio Líquido)", fmt_aum(aum_solis), "Solis Investimentos",
-                 delta=f"Mercado (Fora Solis): {fmt_aum(aum_mercado)}",
-                 delta_up=None, card_class="kpi-solis"),
+                 delta=f"vs {n_mercado} no mercado", card_class="kpi-solis"),
+        kpi_card("AuM — Patrimônio Líquido", fmt_aum(aum_solis), "Solis Investimentos",
+                 delta=f"Mercado (ex-Solis): {fmt_aum(aum_mercado)}",
+                 card_class="kpi-solis"),
         kpi_card("Taxa Média de Gestão", fmt_pct(med_gestao_solis), "% a.a. · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_pct(med_gestao_mercado)}",
-                 delta_up=calc_delta(med_gestao_solis, med_gestao_mercado), card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_pct(med_gestao_mercado)}",
+                 delta_up=calc_delta(med_gestao_solis, med_gestao_mercado),
+                 card_class="kpi-solis"),
         kpi_card("Taxa Média de Performance", fmt_pct(med_perf_solis), "% a.a. · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_pct(med_perf_mercado)}",
-                 delta_up=calc_delta(med_perf_solis, med_perf_mercado), card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_pct(med_perf_mercado)}",
+                 delta_up=calc_delta(med_perf_solis, med_perf_mercado),
+                 card_class="kpi-solis"),
     ]
-    # ── linha 2: inadimplência + subordinação (3 cards) ────────────────────────────
+
+    # ── Linha 2 (3 cards) ────────────────────────────────────────────────────
     cards_row2 = [
         kpi_card("Inadimplência Média (PDD/DC)", fmt_pct(med_inad_solis), "% · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_pct(med_inad_mercado)}",
-                 delta_up=calc_delta(med_inad_solis, med_inad_mercado), card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_pct(med_inad_mercado)}",
+                 delta_up=calc_delta(med_inad_solis, med_inad_mercado),
+                 card_class="kpi-solis"),
         kpi_card("Subordinação Jr.", fmt_pct(med_sub_jr_solis), "% · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_pct(med_sub_jr_mercado)}",
-                 delta_up=calc_delta(med_sub_jr_solis, med_sub_jr_mercado), card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_pct(med_sub_jr_mercado)}",
+                 delta_up=calc_delta(med_sub_jr_solis, med_sub_jr_mercado),
+                 card_class="kpi-solis"),
         kpi_card("Subord. Jr + Mez", fmt_pct(med_sub_jr_mz_solis), "% · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_pct(med_sub_jr_mz_mercado)}",
-                 delta_up=calc_delta(med_sub_jr_mz_solis, med_sub_jr_mz_mercado), card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_pct(med_sub_jr_mz_mercado)}",
+                 delta_up=calc_delta(med_sub_jr_mz_solis, med_sub_jr_mz_mercado),
+                 card_class="kpi-solis"),
     ]
-    # PDD e CVNP — médias por fundo (para comparar com mercado)
+
     pdd_med_solis    = df_solis["PDD"].mean()    if "PDD"  in df_solis.columns   else np.nan
     pdd_med_mercado  = df_mercado["PDD"].mean()  if "PDD"  in df_mercado.columns else np.nan
     cvnp_med_solis   = df_solis["CVNP"].mean()   if "CVNP" in df_solis.columns   else np.nan
     cvnp_med_mercado = df_mercado["CVNP"].mean() if "CVNP" in df_mercado.columns else np.nan
 
-    # ── linha 3: PDD e CVNP totais SEM comparação (2 cards) ───────────────────
-    cards_row3 = [
+    # ── Linha 3+4 (4 cards) ──────────────────────────────────────────────────
+    cards_row34 = [
         kpi_card("PDD Total", fmt_aum(pdd_solis), "Provisão Constituída · Solis",
-                 delta=None, delta_up=None, card_class="kpi-solis"),
+                 card_class="kpi-solis"),
         kpi_card("CVNP Total", fmt_aum(cvnp_solis), "Crédito Vencido não Pago · Solis",
-                 delta=None, delta_up=None, card_class="kpi-solis"),
-    ]
-    # ── linha 4: PDD e CVNP médios COM comparação mercado (2 cards) ────────────
-    cards_row4 = [
+                 card_class="kpi-solis"),
         kpi_card("PDD Médio / Fundo", fmt_aum(pdd_med_solis), "Média por fundo · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_aum(pdd_med_mercado)}",
-                 delta_up=None, card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_aum(pdd_med_mercado)}", card_class="kpi-solis"),
         kpi_card("CVNP Médio / Fundo", fmt_aum(cvnp_med_solis), "Média por fundo · Solis",
-                 delta=f"Mercado (Fora Solis): {fmt_aum(cvnp_med_mercado)}",
-                 delta_up=None, card_class="kpi-solis"),
+                 delta=f"Mercado: {fmt_aum(cvnp_med_mercado)}", card_class="kpi-solis"),
     ]
 
     cols1 = st.columns(4)
@@ -173,70 +204,67 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # PDD e CVNP totais + médios numa única linha de 4 cards
-    cards_row3_4 = cards_row3 + cards_row4
     cols3 = st.columns(4)
-    for i, card in enumerate(cards_row3_4):
+    for i, card in enumerate(cards_row34):
         with cols3[i]:
             st.markdown(card, unsafe_allow_html=True)
 
 
 def render_general_kpis(df: pd.DataFrame):
-    """Render 6 KPI cards for general market overview."""
+    """Render KPI cards for general market overview — accent amber (kpi-market)."""
     n_fundos = len(df)
     n_adm    = df["administrador"].nunique()
     n_ges    = df["gestor"].nunique()
     n_focos  = df["foco_atuacao"].nunique()
 
-    adm_col = df["taxa_administracao"] if "taxa_administracao" in df.columns else pd.Series(dtype=float)
-    ges_col = df["taxa_gestao"]        if "taxa_gestao"        in df.columns else pd.Series(dtype=float)
+    adm_col  = df["taxa_administracao"] if "taxa_administracao" in df.columns else pd.Series(dtype=float)
+    ges_col  = df["taxa_gestao"]        if "taxa_gestao"        in df.columns else pd.Series(dtype=float)
     inad_col = df["taxa_inadimplencia"] if "taxa_inadimplencia" in df.columns else pd.Series(dtype=float)
 
     med_adm  = adm_col.mean()
     med_ges  = ges_col.mean()
-    
+
     med_inad = np.nan
     if "PDD" in df.columns and "DC" in df.columns:
         sum_dc = df["DC"].sum()
         if sum_dc > 0:
-            med_inad = (df["PDD"].sum() / sum_dc * 100)
-            if med_inad > 100: med_inad = 100.0
+            med_inad = min(df["PDD"].sum() / sum_dc * 100, 100.0)
 
-    # PDD e CVNP: média por fundo no painel de mercado
     med_pdd  = df["PDD"].mean()  if "PDD"  in df.columns else np.nan
     med_cvnp = df["CVNP"].mean() if "CVNP" in df.columns else np.nan
-    # Subordinação ponderada por volume de tranche
+
     def _sub_pond_g(df_: pd.DataFrame):
         if not {"SB", "MZ", "SR"}.issubset(df_.columns):
             return np.nan, np.nan
         denom = df_["SB"].sum() + df_["MZ"].sum() + df_["SR"].sum()
         if denom == 0:
             return np.nan, np.nan
-        return (df_["SB"].sum() / denom * 100,
-                (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100)
+        return (
+            df_["SB"].sum() / denom * 100,
+            (df_["SB"].sum() + df_["MZ"].sum()) / denom * 100,
+        )
 
     med_sub_jr, med_sub_jr_mz = _sub_pond_g(df)
-
     aum_total = df["Valor_PL"].sum() if "Valor_PL" in df.columns else 0
 
     def fmt_aum(val):
-        if pd.isna(val): return "R$ 0.00"
-        if val >= 1e9: return f"R$ {val/1e9:.2f} Bi"
-        if val >= 1e6: return f"R$ {val/1e6:.2f} Mi"
+        if pd.isna(val): return "R$ 0,00"
+        if val >= 1e9:   return f"R$ {val/1e9:.2f} Bi"
+        if val >= 1e6:   return f"R$ {val/1e6:.2f} Mi"
         return f"R$ {val:,.2f}"
 
     cards = [
-        kpi_card("AuM Mercado (PL Total)", fmt_aum(aum_total), "Patrimônio Líquido", card_class="kpi-market"),
-        kpi_card("FIDCs Analisados",    str(n_fundos),    f"{n_focos} segmentos", card_class="kpi-market"),
-        kpi_card("Administradores",     str(n_adm),       "entidades únicas", card_class="kpi-market"),
-        kpi_card("Gestores",            str(n_ges),       "entidades únicas", card_class="kpi-market"),
-        kpi_card("Média Adm.",          fmt_pct(med_adm), f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
-        kpi_card("Média Gestão",        fmt_pct(med_ges), f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
+        kpi_card("AuM Mercado (PL Total)", fmt_aum(aum_total), "Patrimônio Líquido",  card_class="kpi-market"),
+        kpi_card("FIDCs Analisados",       str(n_fundos),      f"{n_focos} segmentos", card_class="kpi-market"),
+        kpi_card("Administradores",        str(n_adm),         "entidades únicas",     card_class="kpi-market"),
+        kpi_card("Gestores",               str(n_ges),         "entidades únicas",     card_class="kpi-market"),
+        kpi_card("Média Adm.",             fmt_pct(med_adm),   f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
+        kpi_card("Média Gestão",           fmt_pct(med_ges),   f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
         kpi_card("Inadimplência Méd. (PDD/DC)", fmt_pct(med_inad), f"mediana: {fmt_pct(inad_col.median())}", card_class="kpi-market"),
-        kpi_card("Subordinação Jr.", fmt_pct(med_sub_jr), "Média", card_class="kpi-market"),
-        kpi_card("Subord. Jr + Mez", fmt_pct(med_sub_jr_mz), "Média", card_class="kpi-market"),
-        kpi_card("PDD Médio / Fundo", fmt_aum(med_pdd), "Provisão · Média do Mercado", card_class="kpi-market"),
-        kpi_card("CVNP Médio / Fundo", fmt_aum(med_cvnp), "Créd. Vencido não Pago · Média", card_class="kpi-market"),
+        kpi_card("Subordinação Jr.",        fmt_pct(med_sub_jr),    "Ponderada",        card_class="kpi-market"),
+        kpi_card("Subord. Jr + Mez",        fmt_pct(med_sub_jr_mz), "Ponderada",        card_class="kpi-market"),
+        kpi_card("PDD Médio / Fundo",       fmt_aum(med_pdd),       "Provisão — Média", card_class="kpi-market"),
+        kpi_card("CVNP Médio / Fundo",      fmt_aum(med_cvnp),      "Créd. Venc. — Média", card_class="kpi-market"),
     ]
 
     cols1 = st.columns(4)
@@ -253,7 +281,6 @@ def render_general_kpis(df: pd.DataFrame):
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    # Subordinação + PDD + CVNP médios na mesma linha (4 cards → linha de 4)
     cols3 = st.columns(4)
     for i in range(7, 11):
         with cols3[i - 7]:
