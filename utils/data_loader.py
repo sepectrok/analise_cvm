@@ -47,7 +47,7 @@ TAXA_LABELS = {
     "taxa_servicing":     "Taxa de Servicing",
 }
 
-# Faixas de aging de crédito vencido não pago (CVNP)
+# Faixas de cnpj de crédito vencido não pago (CVNP)
 CVNP_COLS = [
     "CVNP_1_a_30",
     "CVNP_31_a_60",
@@ -55,20 +55,44 @@ CVNP_COLS = [
     "CVNP_91_a_120",
     "CVNP_121_a_150",
     "CVNP_151_a_180",
-    "CVNP_180+",
+    "CVNP_181_a_360",
+    "CVNP_360_mais",
+
 ]
 
 CVNP_LABELS = {
-    "CVNP_1_a_30":    "1-30 dias",
-    "CVNP_31_a_60":   "31-60 dias",
-    "CVNP_61_a_90":   "61-90 dias",
-    "CVNP_91_a_120":  "91-120 dias",
-    "CVNP_121_a_150": "121-150 dias",
-    "CVNP_151_a_180": "151-180 dias",
-    "CVNP_180+":      "180+ dias",
+    "CVNP_1_a_30":    "CVNP_1-30 dias",
+    "CVNP_31_a_60":   "CVNP_31-60 dias",
+    "CVNP_61_a_90":   "CVNP_61-90 dias",
+    "CVNP_91_a_120":  "CVNP_91-120 dias",
+    "CVNP_121_a_150": "CVNP_121-150 dias",
+    "CVNP_151_a_180": "CVNP_151-180 dias",
+    "CVNP_181_a_360": "CVNP_181-360 dias",
+    "CVNP_360_mais":  "CVNP_360+ dias",
 }
 
+AGING_COLS = [
+    "Aging_1_a_30",
+    "Aging_31_a_60",
+    "Aging_61_a_90",
+    "Aging_91_a_120",
+    "Aging_121_a_150",
+    "Aging_151_a_180",
+    "Aging_181_a_360",
+    "Aging_360_mais",
 
+]
+
+AGING_LABELS = {
+    "Aging_1_a_30":    "AGING_1-30 dias",
+    "Aging_31_a_60":   "AGING_31-60 dias",
+    "Aging_61_a_90":   "AGING_61-90 dias",
+    "Aging_91_a_120":  "AGING_91-120 dias",
+    "Aging_121_a_150": "AGING_121-150 dias",
+    "Aging_151_a_180": "AGING_151-180 dias",
+    "Aging_181_a_360": "AGING_181-360 dias",
+    "Aging_360_mais":  "AGING_360+ dias",
+}
 # ─── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ascii_lower(s: str) -> str:
@@ -185,14 +209,19 @@ def load_inadimplencia() -> pd.DataFrame:
     for c in cols_cvnp_presentes:
         df_inad[c] = pd.to_numeric(df_inad[c], errors="coerce").fillna(0)
 
-    # Tratamento da data
+    # Garantir que colunas Aging são numéricas
+    cols_aging_presentes = [c for c in ["Aging"] + AGING_COLS if c in df_inad.columns]
+    for c in cols_aging_presentes:
+        df_inad[c] = pd.to_numeric(df_inad[c], errors="coerce").fillna(0)
+
+    # Tratamentod da data
     df_inad["Data_Posicao"] = pd.to_datetime(df_inad["Data_Posicao"], errors="coerce")
 
     cols_base = ["Data_Posicao", "cnpj_str", "taxa_inadimplencia", "taxa_inadimplencia_pl",
                  "PDD", "DC", "PL_CVM", "Valor_PL", "Situacao", "Check_PL",
                  "Sub_JR", "Sub_JR_MZ",
                  "SB", "MZ", "SR","CLU"]      # tranches brutas para agregação ponderada
-    cols_final = cols_base + cols_cvnp_presentes
+    cols_final = cols_base + cols_cvnp_presentes + cols_aging_presentes
     return df_inad[[c for c in cols_final if c in df_inad.columns]]
 
 

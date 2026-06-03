@@ -5,7 +5,7 @@ Paleta e gradientes fiéis ao site solisinvestimentos.com.br
 import numpy as np
 import pandas as pd
 import streamlit as st
-from utils.data_loader import TAXA_COLS, TAXA_LABELS
+from utils.data_loader import TAXA_COLS, TAXA_LABELS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS
 from utils.formatters import fmt_pct, fmt_num
 
 
@@ -125,7 +125,7 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
 
     pdd_solis  = df_solis["PDD"].sum()  if "PDD"  in df_solis.columns else 0
     cvnp_solis = df_solis["CVNP"].sum() if "CVNP" in df_solis.columns else 0
-
+    aging_solis = df_solis["Aging"].sum() if "Aging" in df_solis.columns else 0
     def calc_delta(v1, v2):
         if pd.isna(v1) or pd.isna(v2) or v2 == 0:
             return None
@@ -133,7 +133,8 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
 
     aum_solis   = df_solis["Valor_PL"].sum()   if "Valor_PL" in df_solis.columns   else 0
     aum_mercado = df_mercado["Valor_PL"].sum() if "Valor_PL" in df_mercado.columns else 0
-
+    pdd_med_solis    = df_solis["PDD"].mean()    if "PDD"  in df_solis.columns   else np.nan
+    pdd_med_mercado  = df_mercado["PDD"].mean()  if "PDD"  in df_mercado.columns else np.nan
     def fmt_aum(val):
         if pd.isna(val): return "R$ 0,00"
         if val >= 1e9:   return f"R$ {val/1e9:.2f} Bi"
@@ -157,8 +158,10 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
                  card_class="kpi-solis"),
     ]
 
-    # ── Linha 2 (3 cards) ────────────────────────────────────────────────────
+    # ── Linha 2 (4 cards) ────────────────────────────────────────────────────
     cards_row2 = [
+        kpi_card("PDD Total", fmt_aum(pdd_solis), "Provisão Constituída · Solis",
+                 card_class="kpi-solis"),
         kpi_card("Inadimplência Média (PDD/DC)", fmt_pct(med_inad_solis), "% · Solis",
                  delta=f"Mercado: {fmt_pct(med_inad_mercado)}",
                  delta_up=calc_delta(med_inad_solis, med_inad_mercado),
@@ -173,14 +176,13 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
                  card_class="kpi-solis"),
     ]
 
-    pdd_med_solis    = df_solis["PDD"].mean()    if "PDD"  in df_solis.columns   else np.nan
-    pdd_med_mercado  = df_mercado["PDD"].mean()  if "PDD"  in df_mercado.columns else np.nan
+
     cvnp_med_solis   = df_solis["CVNP"].mean()   if "CVNP" in df_solis.columns   else np.nan
     cvnp_med_mercado = df_mercado["CVNP"].mean() if "CVNP" in df_mercado.columns else np.nan
 
     # ── Linha 3+4 (4 cards) ──────────────────────────────────────────────────
     cards_row34 = [
-        kpi_card("PDD Total", fmt_aum(pdd_solis), "Provisão Constituída · Solis",
+        kpi_card("Aging Total", fmt_aum(aging_solis), "Aging · Solis",
                  card_class="kpi-solis"),
         kpi_card("CVNP Total", fmt_aum(cvnp_solis), "Crédito Vencido não Pago · Solis",
                  card_class="kpi-solis"),
@@ -197,7 +199,7 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    cols2 = st.columns(3)
+    cols2 = st.columns(4)
     for i, card in enumerate(cards_row2):
         with cols2[i]:
             st.markdown(card, unsafe_allow_html=True)
@@ -232,6 +234,7 @@ def render_general_kpis(df: pd.DataFrame):
 
     med_pdd  = df["PDD"].mean()  if "PDD"  in df.columns else np.nan
     med_cvnp = df["CVNP"].mean() if "CVNP" in df.columns else np.nan
+    med_aging = df["Aging"].mean() if "Aging" in df.columns else np.nan
 
     def _sub_pond_g(df_: pd.DataFrame):
         if not {"SB", "MZ", "SR"}.issubset(df_.columns):
@@ -260,11 +263,12 @@ def render_general_kpis(df: pd.DataFrame):
         kpi_card("Gestores",               str(n_ges),         "entidades únicas",     card_class="kpi-market"),
         kpi_card("Média Adm.",             fmt_pct(med_adm),   f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
         kpi_card("Média Gestão",           fmt_pct(med_ges),   f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
+        kpi_card("PDD Médio / Fundo",       fmt_aum(med_pdd),       "Provisão — Média", card_class="kpi-market"),
         kpi_card("Inadimplência Méd. (PDD/DC)", fmt_pct(med_inad), f"mediana: {fmt_pct(inad_col.median())}", card_class="kpi-market"),
         kpi_card("Subordinação Jr.",        fmt_pct(med_sub_jr),    "Ponderada",        card_class="kpi-market"),
         kpi_card("Subord. Jr + Mez",        fmt_pct(med_sub_jr_mz), "Ponderada",        card_class="kpi-market"),
-        kpi_card("PDD Médio / Fundo",       fmt_aum(med_pdd),       "Provisão — Média", card_class="kpi-market"),
         kpi_card("CVNP Médio / Fundo",      fmt_aum(med_cvnp),      "Créd. Venc. — Média", card_class="kpi-market"),
+        kpi_card("Aging Médio / Fundo",       fmt_aum(med_aging),     "Aging — Média", card_class="kpi-market"),
     ]
 
     cols1 = st.columns(4)
@@ -274,16 +278,16 @@ def render_general_kpis(df: pd.DataFrame):
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
-    cols2 = st.columns(3)
-    for i in range(4, 7):
+    cols2 = st.columns(4)
+    for i in range(4, 8):
         with cols2[i - 4]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
 
     cols3 = st.columns(4)
-    for i in range(7, 11):
-        with cols3[i - 7]:
+    for i in range(8, 12):
+        with cols3[i - 8]:
             st.markdown(cards[i], unsafe_allow_html=True)
 
 

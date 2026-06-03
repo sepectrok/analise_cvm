@@ -7,12 +7,13 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import plotly.colors as pc
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, kpi_card, insight_card
-from components.charts import bar_ranking, heatmap_entity_taxa, histogram_taxa
+from components.charts import bar_ranking, heatmap_entity_taxa, histogram_taxa, PALETTE, _base_layout
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, add_subordinacao_ponderada
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS, add_subordinacao_ponderada
 from utils.formatters import fmt_pct
 
 load_css()
@@ -46,8 +47,13 @@ for _t in ["SB", "MZ", "SR"]:
     if _t in df_ges.columns:
         agg_dict[_t] = "sum"
 
-# CVNP — aging de vencidos
+# CVNP — crédito vencido não pago
 for _c in ["CVNP"] + CVNP_COLS:
+    if _c in df_ges.columns:
+        agg_dict[_c] = "sum"
+
+# Aging — envelhecimento da carteira
+for _c in ["Aging"] + AGING_COLS:
     if _c in df_ges.columns:
         agg_dict[_c] = "sum"
 
@@ -111,10 +117,10 @@ st.markdown("---")
 
 col_opt_global, col_min_global = st.columns([2, 1])
 with col_min_global:
-    min_f = st.slider("Nº mínimo de fundos", 1, 50, 2, key="ges_min_global")
+    min_f = st.slider("Nº mínimo de fundos sob Gestão", 1, 25, 10, key="ges_min_global")
 
-tab1, tab2, tab3, tab4, tab5, tab_aging = st.tabs(
-    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação", "Aging de Vencidos"]
+tab1, tab2, tab3, tab4, tab5, tab_cvnp, tab_aging = st.tabs(
+    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação", "CVNP", "Aging"]
 )
 
 with tab1:
@@ -146,7 +152,10 @@ with tab1:
 
 with tab2:
     if "taxa_gestao" in df.columns:
-        st.plotly_chart(histogram_taxa(df, "taxa_gestao"), use_container_width=True)
+        # Filtrar apenas fundos dos gestores que atendem ao critério de min_fundos
+        ges_validos = df_agg[df_agg["n_fundos"] >= min_f]["gestor"]
+        df_dist_ges = df_ges[df_ges["gestor"].isin(ges_validos)]
+        st.plotly_chart(histogram_taxa(df_dist_ges, "taxa_gestao"), use_container_width=True)
     else:
         st.info("Dados de taxa de gestão não disponíveis.")
 
@@ -454,7 +463,29 @@ st.download_button(
 # Tab: Aging de Vencidos
 # ─────────────────────────────────────────────────────────────────────────────
 
-with tab_aging:
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper de paleta — degradê blue → orange → amber
+# ─────────────────────────────────────────────────────────────────────────────
+def _ges_make_grad(n: int, alpha: float = 0.90) -> list:
+    hex_list = pc.sample_colorscale(
+        [[0, PALETTE["blue"]], [0.5, PALETTE["orange"]], [1, PALETTE["amber"]]],
+        [i / max(n - 1, 1) for i in range(n)],
+    )
+    out = []
+    for h in hex_list:
+        if h.startswith("#"):
+            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+        else:
+            parts = h.replace("rgb(", "").replace(")", "").split(",")
+            r, g, b = int(parts[0].strip()), int(parts[1].strip()), int(parts[2].strip())
+        out.append(f"rgba({r},{g},{b},{alpha})")
+    return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab: CVNP — Crédito Vencido Não Pago
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_cvnp:
     cvnp_cols_presentes = [c for c in CVNP_COLS if c in df_agg.columns]
 
     if "CVNP" not in df_agg.columns or not cvnp_cols_presentes:
@@ -463,17 +494,91 @@ with tab_aging:
         st.markdown('<div class="section-label">Ranking de CVNP por Gestor</div>', unsafe_allow_html=True)
         st.caption(
             "Crédito Vencido Não Pago total (soma dos fundos) por gestora. "
-            "Solis destacada em azul. Filtro de mínimo de fundos global aplicável."
+            "Solis destacada em dourado. Filtro de mínimo de fundos global aplicável."
         )
 
-        df_aging = df_agg[df_agg["n_fundos"] >= min_f].copy()
+        df_cvnp_ges = df_agg[df_agg["n_fundos"] >= min_f].copy()
 
         # ── Ranking CVNP total ────────────────────────────────────────────────
         st.plotly_chart(
             bar_ranking(
-                df_aging.rename(columns={"CVNP": "_val", "gestor": "_name"}),
+                df_cvnp_ges.rename(columns={"CVNP": "_val", "gestor": "_name"}),
                 "_val", "_name",
                 title="Ranking de CVNP por Gestora (R$)",
+                top_n=15, highlight_name="Solis",
+                is_percent=False, is_currency=True,
+            ),
+            use_container_width=True,
+        )
+
+        st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
+        st.markdown('<div class="section-label">Perfil de CVNP — Solis vs. Média de Mercado (%)</div>',
+                    unsafe_allow_html=True)
+        st.caption(
+            "Distribuição percentual do CVNP por faixa de atraso. "
+            "Normalizado sobre o CVNP total de cada grupo para comparabilidade."
+        )
+
+        is_solis_ges = df_ges["gestor"].str.contains("Solis", case=False, na=False)
+        df_s  = df_ges[is_solis_ges]
+        df_mk = df_ges[~is_solis_ges]
+
+        def _cvnp_pct(df_g):
+            totais = {c: df_g[c].sum() for c in cvnp_cols_presentes if c in df_g.columns}
+            total_cvnp = sum(totais.values())
+            if total_cvnp == 0:
+                return {c: 0.0 for c in cvnp_cols_presentes}
+            return {c: v / total_cvnp * 100 for c, v in totais.items()}
+
+        pct_solis   = _cvnp_pct(df_s)
+        pct_mercado = _cvnp_pct(df_mk)
+
+        n_cvnp  = len(cvnp_cols_presentes)
+        pal_cvnp = _ges_make_grad(n_cvnp, 0.88)
+        labels  = [CVNP_LABELS.get(c, c) for c in cvnp_cols_presentes]
+
+        fig_cvnp = go.Figure()
+        for i, (col, lbl) in enumerate(zip(cvnp_cols_presentes, labels)):
+            cor = pal_cvnp[i]
+            fig_cvnp.add_trace(go.Bar(
+                name=lbl,
+                x=["Mercado", "Solis"],
+                y=[pct_mercado.get(col, 0), pct_solis.get(col, 0)],
+                marker_color=cor,
+                hovertemplate=f"<b>{lbl}</b><br>%{{x}}: %{{y:.2f}}%<extra></extra>",
+            ))
+        _lay_cvnp = _base_layout("Distribuição do CVNP por Faixa de Atraso (%)", 440)
+        _lay_cvnp["barmode"] = "stack"
+        _lay_cvnp["margin"].update({"t": 72})
+        _lay_cvnp["yaxis"].update({"title": "% do CVNP Total", "ticksuffix": "%"})
+        _lay_cvnp["xaxis"].update({"title": "Grupo"})
+        _lay_cvnp["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "center", "x": 0.5})
+        fig_cvnp.update_layout(**_lay_cvnp)
+        st.plotly_chart(fig_cvnp, use_container_width=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab: Aging — Envelhecimento da Carteira
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_aging:
+    aging_cols_presentes_ges = [c for c in AGING_COLS if c in df_agg.columns]
+
+    if "Aging" not in df_agg.columns or not aging_cols_presentes_ges:
+        st.info("Dados de Aging não disponíveis na base atual.")
+    else:
+        st.markdown('<div class="section-label">Ranking de Aging por Gestor</div>', unsafe_allow_html=True)
+        st.caption(
+            "Volume total de Aging (envelhecimento da carteira de recebíveis) por gestora. "
+            "Solis destacada em dourado. Filtro de mínimo de fundos global aplicável."
+        )
+
+        df_ag_ges = df_agg[df_agg["n_fundos"] >= min_f].copy()
+
+        st.plotly_chart(
+            bar_ranking(
+                df_ag_ges.rename(columns={"Aging": "_val", "gestor": "_name"}),
+                "_val", "_name",
+                title="Ranking de Aging por Gestora (R$)",
                 top_n=15, highlight_name="Solis",
                 is_percent=False, is_currency=True,
             ),
@@ -484,49 +589,43 @@ with tab_aging:
         st.markdown('<div class="section-label">Perfil de Aging — Solis vs. Média de Mercado (%)</div>',
                     unsafe_allow_html=True)
         st.caption(
-            "\n"
-            "Distribuição percentual do CVNP por faixa de atraso. "
-            "Normalizado sobre o CVNP total de cada grupo para comparabilidade."
+            "Distribuição percentual do Aging por faixa de prazo. "
+            "Normalizado sobre o Aging total de cada grupo para comparabilidade."
         )
 
-        is_solis_ges = df_ges["gestor"].str.contains("Solis", case=False, na=False)
-        df_s  = df_ges[is_solis_ges]
-        df_mk = df_ges[~is_solis_ges]
+        is_solis_ges_ag = df_ges["gestor"].str.contains("Solis", case=False, na=False)
+        df_s_ag  = df_ges[is_solis_ges_ag]
+        df_mk_ag = df_ges[~is_solis_ges_ag]
 
-        def _aging_pct(df_g):
-            totais = {c: df_g[c].sum() for c in cvnp_cols_presentes if c in df_g.columns}
-            total_cvnp = sum(totais.values())
-            if total_cvnp == 0:
-                return {c: 0.0 for c in cvnp_cols_presentes}
-            return {c: v / total_cvnp * 100 for c, v in totais.items()}
+        def _aging_pct_prop(df_g):
+            totais = {c: df_g[c].sum() for c in aging_cols_presentes_ges if c in df_g.columns}
+            total_ag = sum(totais.values())
+            if total_ag == 0:
+                return {c: 0.0 for c in aging_cols_presentes_ges}
+            return {c: v / total_ag * 100 for c, v in totais.items()}
 
-        pct_solis  = _aging_pct(df_s)
-        pct_mercado = _aging_pct(df_mk)
+        pct_solis_ag   = _aging_pct_prop(df_s_ag)
+        pct_mercado_ag = _aging_pct_prop(df_mk_ag)
 
-        import plotly.graph_objects as go
-        from components.charts import _base_layout, PALETTE
+        n_ag      = len(aging_cols_presentes_ges)
+        pal_ag    = _ges_make_grad(n_ag, 0.88)
+        labels_ag = [AGING_LABELS.get(c, c) for c in aging_cols_presentes_ges]
 
-        labels = [CVNP_LABELS.get(c, c) for c in cvnp_cols_presentes]
-
-        fig_aging = go.Figure()
-        fig_aging.add_trace(go.Bar(
-            name="Mercado (excl. Solis)",
-            x=labels,
-            y=[pct_mercado.get(c, 0) for c in cvnp_cols_presentes],
-            marker_color="rgba(217,119,6,0.75)",
-            hovertemplate="%{x}: %{y:.2f}%<extra>Mercado</extra>",
-        ))
-        fig_aging.add_trace(go.Bar(
-            name="Solis Investimentos",
-            x=labels,
-            y=[pct_solis.get(c, 0) for c in cvnp_cols_presentes],
-            marker_color="rgba(59,130,246,0.9)",
-            hovertemplate="%{x}: %{y:.2f}%<extra>Solis</extra>",
-        ))
-        _lay = _base_layout("Distribuição do CVNP por Faixa de Atraso (%)", 440)
-        _lay["barmode"] = "group"
-        _lay["margin"].update({"t": 72})
-        _lay["yaxis"].update({"title": "% do CVNP Total", "ticksuffix": "%"})
-        _lay["xaxis"].update({"title": "Faixa de Atraso"})
-        fig_aging.update_layout(**_lay)
-        st.plotly_chart(fig_aging, use_container_width=True)
+        fig_ag = go.Figure()
+        for i, (col, lbl) in enumerate(zip(aging_cols_presentes_ges, labels_ag)):
+            cor = pal_ag[i]
+            fig_ag.add_trace(go.Bar(
+                name=lbl,
+                x=["Mercado", "Solis"],
+                y=[pct_mercado_ag.get(col, 0), pct_solis_ag.get(col, 0)],
+                marker_color=cor,
+                hovertemplate=f"<b>{lbl}</b><br>%{{x}}: %{{y:.2f}}%<extra></extra>",
+            ))
+        _lay_ag = _base_layout("Distribuição do Aging por Faixa de Prazo (%)", 440)
+        _lay_ag["barmode"] = "stack"
+        _lay_ag["margin"].update({"t": 72})
+        _lay_ag["yaxis"].update({"title": "% do Aging Total", "ticksuffix": "%"})
+        _lay_ag["xaxis"].update({"title": "Grupo"})
+        _lay_ag["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "center", "x": 0.5})
+        fig_ag.update_layout(**_lay_ag)
+        st.plotly_chart(fig_ag, use_container_width=True)

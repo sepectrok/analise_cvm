@@ -12,8 +12,9 @@ import plotly.graph_objects as go
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
 from components.charts import boxplot_by_group, PALETTE, _base_layout
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS
 from utils.formatters import fmt_pct
+import plotly.colors as pc
 
 load_css()
 df_full = build_df_fidc()
@@ -35,7 +36,7 @@ df_seg.columns = ["foco_atuacao"] + [
 ] + ["n_fundos"]
 
 st.markdown("---")
-tab1, tab2, tab4, tab5, tab6 = st.tabs(["Taxas por Segmento", "Boxplot", "Inadimplência", "Subordinação", "Aging de Vencidos"])
+tab1, tab2, tab4, tab5, tab_cvnp, tab_aging = st.tabs(["Taxas por Segmento", "Boxplot", "Inadimplência", "Subordinação", "CVNP", "Aging"])
 
 with tab1:
     col_sel = st.selectbox(
@@ -815,21 +816,40 @@ st.download_button(
 )
 
 
-# ── Tab 6: Aging de Vencidos ──────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper de paleta — degradê blue → orange → amber
+# ─────────────────────────────────────────────────────────────────────────────
+def _foco_make_grad(n: int, alpha: float = 0.90) -> list:
+    hex_list = pc.sample_colorscale(
+        [[0, PALETTE["blue"]], [0.5, PALETTE["orange"]], [1, PALETTE["amber"]]],
+        [i / max(n - 1, 1) for i in range(n)],
+    )
+    out = []
+    for h in hex_list:
+        if h.startswith("#"):
+            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+        else:
+            parts = h.replace("rgb(", "").replace(")", "").split(",")
+            r, g, b = int(parts[0].strip()), int(parts[1].strip()), int(parts[2].strip())
+        out.append(f"rgba({r},{g},{b},{alpha})")
+    return out
 
-with tab6:
+
+# ── Tab: CVNP — Crédito Vencido Não Pago ──────────────────────────────────────
+
+with tab_cvnp:
     cvnp_presentes = [c for c in CVNP_COLS if c in df.columns]
 
     if not cvnp_presentes:
         st.info("Dados de CVNP não disponíveis na base atual.")
     else:
         st.markdown(
-            '<div class="section-label">Aging de Vencidos — Solis vs Mercado por Segmento</div>',
+            '<div class="section-label">CVNP — Solis vs Mercado por Segmento</div>',
             unsafe_allow_html=True,
         )
         st.caption(
             "Barras empilhadas 100% por faixa de atraso. "
-            "Para cada segmento: **Mercado** (tons de cinza) ao lado de **Solis** (cores âmbar→azul). "
+            "Para cada segmento: **Mercado** ao lado de **Solis**. "
             "Use os controles abaixo para personalizar a visualização."
         )
 
@@ -878,27 +898,9 @@ with tab6:
         else:
             cols_sel = [c for c in cvnp_presentes if CVNP_LABELS.get(c, c) in faixas_sel]
 
-            # ── Paletas de cores ──────────────────────────────────────────────
-            # Solis: âmbar → azul-ardósia
-            _solis_cores = [
-                "rgba(251,191,36,0.93)",   # 1-30   — ouro/âmbar
-                "rgba(245,158,11,0.93)",   # 31-60  — âmbar
-                "rgba(249,115,22,0.91)",   # 61-90  — laranja
-                "rgba(180,130,155,0.91)",  # 91-120 — rose muted
-                "rgba(110,140,190,0.91)",  # 121-150— azul pérola
-                "rgba(79,110,168,0.93)",   # 151-180— azul médio
-                "rgba(55,80,130,0.95)",    # 180+   — azul-ardósia
-            ]
-            # Mercado: escala de cinzas (claro → escuro, progressão por faixa)
-            _gray_cores = [
-                "rgba(251,191,36,0.93)",   # 1-30   — ouro/âmbar
-                "rgba(245,158,11,0.93)",   # 31-60  — âmbar
-                "rgba(249,115,22,0.91)",   # 61-90  — laranja
-                "rgba(180,130,155,0.91)",  # 91-120 — rose muted
-                "rgba(110,140,190,0.91)",  # 121-150— azul pérola
-                "rgba(79,110,168,0.93)",   # 151-180— azul médio
-                "rgba(55,80,130,0.95)",    # 180+   — azul-ardósia
-            ]
+            # Mercado e Solis usam o mesmo degradê, variando a opacidade para distinguir (Sol 90%, Mkt 70%)
+            _solis_cores = _foco_make_grad(len(cvnp_presentes), alpha=0.90)
+            _gray_cores  = _foco_make_grad(len(cvnp_presentes), alpha=0.70)
             # Mapeia col → índice global (mantém cor correta quando faixas são filtradas)
             _col_idx = {c: i for i, c in enumerate(cvnp_presentes)}
 
@@ -1101,3 +1103,266 @@ with tab6:
             else:
                 st.dataframe(tbl_mkt, use_container_width=True, hide_index=True,
                              column_config=cfg_tbl, height=300)
+
+
+# ── Tab: Aging — Envelhecimento da Carteira ───────────────────────────────────
+
+with tab_aging:
+    aging_presentes = [c for c in AGING_COLS if c in df.columns]
+
+    if not aging_presentes:
+        st.info("Dados de Aging não disponíveis na base atual.")
+    else:
+        st.markdown(
+            '<div class="section-label">Aging — Solis vs Mercado por Segmento</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Barras empilhadas 100% por faixa de prazo. "
+            "Para cada segmento: **Mercado** ao lado de **Solis**. "
+            "Use os controles abaixo para personalizar a visualização."
+        )
+
+        # ── Separar grupos ────────────────────────────────────────────────────
+        is_solis_g_ag = df["gestor"].str.contains("Solis", case=False, na=False)
+        df_solis_g_ag = df[is_solis_g_ag]
+        df_mkt_g_ag   = df[~is_solis_g_ag]
+
+        def _agg_aging_real(df_g):
+            if df_g.empty:
+                return pd.DataFrame()
+            grp = (
+                df_g.groupby("foco_atuacao")[["Aging"] + aging_presentes + ["cnpj_tratado"]]
+                .agg({"Aging": "sum", "cnpj_tratado": "count",
+                      **{c: "sum" for c in aging_presentes}})
+                .reset_index()
+                .rename(columns={"cnpj_tratado": "n_fundos"})
+            )
+            grp = grp[grp["Aging"] > 0].copy()
+            for c in aging_presentes:
+                grp[f"{c}_pct"] = (grp[c] / grp["Aging"] * 100).fillna(0)
+            return grp.sort_values("Aging", ascending=False)
+
+        agg_solis_ag = _agg_aging_real(df_solis_g_ag)
+        agg_mkt_ag   = _agg_aging_real(df_mkt_g_ag)
+
+        # ── Controles ─────────────────────────────────────────────────────────
+        ctrl_c1_ag, ctrl_c2_ag = st.columns([3, 1])
+        with ctrl_c1_ag:
+            faixas_labels_ag_all = [AGING_LABELS.get(c, c) for c in aging_presentes]
+            faixas_sel_ag = st.multiselect(
+                "Faixas de prazo",
+                options=faixas_labels_ag_all,
+                default=faixas_labels_ag_all,
+                key="aging_real_faixas",
+                help="Selecione quais faixas de prazo visualizar.",
+            )
+        with ctrl_c2_ag:
+            show_mercado_ag = st.checkbox("Mercado (excl. Solis)", value=True, key="aging_real_show_mercado")
+            show_solis_ag   = st.checkbox("Solis Investimentos",   value=True, key="aging_real_show_solis")
+
+        if not faixas_sel_ag:
+            st.info("Selecione ao menos uma faixa de prazo.")
+        elif not show_solis_ag and not show_mercado_ag:
+            st.info("Selecione ao menos um grupo (Solis ou Mercado).")
+        else:
+            cols_sel_ag = [c for c in aging_presentes if AGING_LABELS.get(c, c) in faixas_sel_ag]
+
+            # ── Paletas de cores ──────────────────────────────────────────────
+            _solis_cores_ag = _foco_make_grad(len(aging_presentes), alpha=0.90)
+            _gray_cores_ag  = _foco_make_grad(len(aging_presentes), alpha=0.70)
+
+            _col_idx_ag = {c: i for i, c in enumerate(aging_presentes)}
+
+            # ── Ordenação dos segmentos: ref = Mercado desc por Aging ─────────
+            segs_ref_ag = agg_mkt_ag["foco_atuacao"].tolist() if not agg_mkt_ag.empty else []
+            for s in (agg_solis_ag["foco_atuacao"].tolist() if not agg_solis_ag.empty else []):
+                if s not in segs_ref_ag:
+                    segs_ref_ag.append(s)
+
+            segs_validos_ag = set()
+            if show_mercado_ag and not agg_mkt_ag.empty:
+                segs_validos_ag |= set(agg_mkt_ag["foco_atuacao"])
+            if show_solis_ag and not agg_solis_ag.empty:
+                segs_validos_ag |= set(agg_solis_ag["foco_atuacao"])
+            segs_order_ag = [s for s in segs_ref_ag if s in segs_validos_ag]
+
+            if not segs_order_ag:
+                st.info("Nenhum dado disponível para os grupos selecionados.")
+            else:
+                # ── Montar eixo Y multicategoria ──────────────────────────────
+                grupos_ativos_ag = []
+                if show_mercado_ag:
+                    grupos_ativos_ag.append(("Mercado", agg_mkt_ag,   _gray_cores_ag,  False))
+                if show_solis_ag:
+                    grupos_ativos_ag.append(("Solis",   agg_solis_ag, _solis_cores_ag, True))
+
+                y_level1_ag, y_level2_ag = [], []
+                for seg in segs_order_ag:
+                    for (gname, _, _, _) in grupos_ativos_ag:
+                        y_level1_ag.append(seg)
+                        y_level2_ag.append(gname)
+                y_multi_ag = [y_level1_ag, y_level2_ag]
+
+                def _pv_ag(agg_g, seg, col):
+                    if agg_g is None or agg_g.empty:
+                        return 0.0
+                    row = agg_g[agg_g["foco_atuacao"] == seg]
+                    return float(row[f"{col}_pct"].iloc[0]) if not row.empty else 0.0
+
+                fig_ag = go.Figure()
+
+                for col in cols_sel_ag:
+                    label     = AGING_LABELS.get(col, col)
+                    cidx      = _col_idx_ag[col]
+
+                    for gname, agg_g, cores, is_solis_grp in grupos_ativos_ag:
+                        cor = cores[cidx] if cidx < len(cores) else cores[-1]
+
+                        x_vals_ag = [_pv_ag(agg_g, seg, col) for seg in segs_order_ag]
+                        y_trace_ag = [
+                            [seg for seg in segs_order_ag],
+                            [gname] * len(segs_order_ag),
+                        ]
+                        text_vals_ag = [f"{v:.0f}%" if v >= 8.0 else "" for v in x_vals_ag]
+
+                        txt_color_ag = "#FFFFFF" if cidx >= 2 else "#1e1e2e"
+
+                        first_group_ag = grupos_ativos_ag[0][0]
+                        show_leg_ag = (gname == first_group_ag)
+
+                        fig_ag.add_trace(go.Bar(
+                            name=label,
+                            y=y_trace_ag,
+                            x=x_vals_ag,
+                            orientation="h",
+                            text=text_vals_ag,
+                            textposition="inside",
+                            insidetextanchor="middle",
+                            textfont=dict(size=8, color=txt_color_ag, family="Inter"),
+                            marker=dict(
+                                color=cor,
+                                line=dict(width=0.4, color="rgba(255,255,255,0.08)"),
+                            ),
+                            legendgroup=label,
+                            showlegend=show_leg_ag,
+                            hovertemplate=(
+                                f"<b>{label}</b><br>"
+                                f"<b>%{{y[0]}}</b> — {gname}<br>"
+                                "%{x:.1f}% do Aging<extra></extra>"
+                            ),
+                        ))
+
+                n_segs_ag  = len(segs_order_ag)
+                n_grps_ag  = len(grupos_ativos_ag)
+                chart_h_ag = max(500, n_segs_ag * n_grps_ag * 26 + 180)
+
+                fig_ag.update_layout(
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="#08090F",
+                    font=dict(
+                        family="Inter, -apple-system, sans-serif",
+                        size=12, color="#94A3B8",
+                    ),
+                    height=chart_h_ag,
+                    barmode="stack",
+                    bargap=0.14,
+                    bargroupgap=0.06,
+                    margin=dict(l=20, r=20, t=80, b=30),
+                    legend=dict(
+                        title=dict(
+                            text="Faixa de prazo",
+                            font=dict(size=10, color="#64748B"),
+                        ),
+                        bgcolor="rgba(18,20,30,0.65)",
+                        bordercolor="rgba(148,163,184,0.12)",
+                        borderwidth=1,
+                        font=dict(size=10, color="#CBD5E1"),
+                        orientation="h",
+                        yanchor="bottom", y=1.01,
+                        xanchor="center", x=0.5,
+                        itemwidth=80,
+                        tracegroupgap=0,
+                    ),
+                    hoverlabel=dict(
+                        bgcolor="#1A1D2B",
+                        bordercolor="rgba(148,163,184,0.15)",
+                        font=dict(family="Inter", size=12, color="#F1F5F9"),
+                    ),
+                    xaxis=dict(
+                        gridcolor="rgba(148,163,184,0.08)",
+                        zerolinecolor="rgba(0,0,0,0)",
+                        ticksuffix="%",
+                        range=[0, 105],
+                        title=dict(text="% do Aging Total",
+                                   font=dict(size=10, color="#94A3B8")),
+                        tickfont=dict(size=9, color="#94A3B8"),
+                    ),
+                    yaxis=dict(
+                        gridcolor="rgba(148,163,184,0.04)",
+                        zerolinecolor="rgba(0,0,0,0)",
+                        tickfont=dict(size=10, color="#94A3B8"),
+                        automargin=True,
+                    ),
+                )
+
+                st.plotly_chart(fig_ag, use_container_width=True)
+
+        # ── Tabela comparativa ────────────────────────────────────────────────
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-label">Tabela Comparativa — Solis × Mercado</div>',
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Distribuição percentual do Aging por faixa de prazo e volume total. "
+            "Solis = fundos geridos pela Solis Investimentos. Mercado = demais gestores."
+        )
+
+        def _build_aging_real_tbl(df_g):
+            if df_g.empty:
+                return pd.DataFrame()
+            grp = (
+                df_g.groupby("foco_atuacao")[["Aging"] + aging_presentes + ["cnpj_tratado"]]
+                .agg({"Aging": "sum", "cnpj_tratado": "count",
+                      **{c: "sum" for c in aging_presentes}})
+                .reset_index()
+                .rename(columns={"cnpj_tratado": "n_fundos"})
+            )
+            grp = grp[grp["Aging"] > 0].copy()
+            for c in aging_presentes:
+                grp[f"{c}_pct"] = (grp[c] / grp["Aging"] * 100).fillna(0)
+            tbl = {
+                "Segmento":  grp["foco_atuacao"].values,
+                "N Fundos":  grp["n_fundos"].values,
+                "Aging (R$)": grp["Aging"].values,
+            }
+            for c in aging_presentes:
+                tbl[AGING_LABELS.get(c, c) + " %"] = grp[f"{c}_pct"].values
+            return pd.DataFrame(tbl)
+
+        is_solis_fa_ag = df["gestor"].str.contains("Solis", case=False, na=False)
+        tbl_solis_ag   = _build_aging_real_tbl(df[is_solis_fa_ag])
+        tbl_mkt_ag     = _build_aging_real_tbl(df[~is_solis_fa_ag])
+
+        pct_tbl_cols_ag = [AGING_LABELS.get(c, c) + " %" for c in aging_presentes]
+        cfg_tbl_ag = {
+            "Aging (R$)": st.column_config.NumberColumn(format="R$ %,.0f"),
+            **{p: st.column_config.NumberColumn(format="%.1f%%") for p in pct_tbl_cols_ag},
+        }
+
+        c_sol_ag, c_mkt_ag = st.columns(2)
+        with c_sol_ag:
+            st.markdown("**Solis Investimentos**")
+            if tbl_solis_ag.empty:
+                st.info("Nenhum dado Solis com Aging.")
+            else:
+                st.dataframe(tbl_solis_ag, use_container_width=True, hide_index=True,
+                             column_config=cfg_tbl_ag, height=300)
+        with c_mkt_ag:
+            st.markdown("**◼ Mercado (excl. Solis)**")
+            if tbl_mkt_ag.empty:
+                st.info("Nenhum dado de mercado com Aging.")
+            else:
+                st.dataframe(tbl_mkt_ag, use_container_width=True, hide_index=True,
+                             column_config=cfg_tbl_ag, height=300)

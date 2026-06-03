@@ -6,12 +6,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
+import plotly.colors as pc
 
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
-from components.charts import bar_ranking, histogram_taxa
+from components.charts import bar_ranking, histogram_taxa, PALETTE, _base_layout
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, add_subordinacao_ponderada
+from utils.data_loader import (
+    build_df_fidc, TAXA_LABELS, TAXA_COLS, add_subordinacao_ponderada,
+    CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS,
+)
 
 load_css()
 df_full = build_df_fidc()
@@ -44,6 +49,16 @@ if "PL_CVM" in df_adm.columns:
 for _t in ["SB", "MZ", "SR"]:
     if _t in df_adm.columns:
         agg_dict[_t] = "sum"
+
+# CVNP — crédito vencido não pago
+for _c in ["CVNP"] + CVNP_COLS:
+    if _c in df_adm.columns:
+        agg_dict[_c] = "sum"
+
+# Aging — envelhecimento da carteira
+for _c in ["Aging"] + AGING_COLS:
+    if _c in df_adm.columns:
+        agg_dict[_c] = "sum"
 
 if "taxa_administracao" in df_adm.columns and "Valor_PL" in df_adm.columns:
     df_adm = df_adm.copy()
@@ -97,11 +112,11 @@ st.markdown("---")
 
 col_min_global, _ = st.columns([1, 2])
 with col_min_global:
-    min_fundos = st.slider("Nº mínimo de fundos", 1, 50, 2, key="adm_min_global")
+    min_fundos = st.slider("Nº mínimo de fundos sob Administração", 1, 25, 10, key="adm_min_global")
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(
-    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação"]
+tab1, tab2, tab3, tab4, tab5, tab_cvnp, tab_aging = st.tabs(
+    ["Ranking", "Distribuição", "Remuneração Esperada", "Inadimplência", "Subordinação", "CVNP", "Aging"]
 )
 
 with tab1:
@@ -110,7 +125,10 @@ with tab1:
 
 with tab2:
     if "taxa_administracao" in df.columns:
-        st.plotly_chart(histogram_taxa(df, "taxa_administracao"), use_container_width=True)
+        # Filtrar apenas fundos dos admins que atendem ao critério de min_fundos
+        adm_validos = df_agg[df_agg["n_fundos"] >= min_fundos]["administrador"]
+        df_dist = df_adm[df_adm["administrador"].isin(adm_validos)]
+        st.plotly_chart(histogram_taxa(df_dist, "taxa_administracao"), use_container_width=True)
     else:
         st.info("Dados de taxa de administração não disponíveis.")
 
@@ -324,3 +342,202 @@ with tab5:
             )
         else:
             st.info("Dados de Subordinação Jr+Mez não disponíveis para os administradores filtrados.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers de paleta — degradê blue → orange → amber (igual Taxas por Segmento)
+# ─────────────────────────────────────────────────────────────────────────────
+def _make_grad_palette(n_faixas: int, alpha: float = 0.90) -> list[str]:
+    """Gera n cores interpoladas blue→orange→amber com opacidade alpha."""
+    hex_list = pc.sample_colorscale(
+        [[0, PALETTE["blue"]], [0.5, PALETTE["orange"]], [1, PALETTE["amber"]]],
+        [i / max(n_faixas - 1, 1) for i in range(n_faixas)],
+    )
+    result = []
+    for h in hex_list:
+        if h.startswith("#"):
+            r, g, b = int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+        else:
+            parts = h.replace("rgb(", "").replace(")", "").split(",")
+            r, g, b = int(parts[0].strip()), int(parts[1].strip()), int(parts[2].strip())
+        result.append(f"rgba({r},{g},{b},{alpha})")
+    return result
+
+
+def _stacked_dist_chart(
+    df_top: pd.DataFrame,
+    entity_col: str,
+    faixas_cols: list[str],
+    faixas_labels: dict,
+    total_col: str,
+    title: str,
+    height: int,
+) -> go.Figure:
+    """Gráfico de barras empilhadas 100% por faixa, para o top de entidades."""
+    n = len(faixas_cols)
+    palette = _make_grad_palette(n, alpha=0.90)
+    entities_order = df_top.sort_values(total_col)[entity_col].tolist()
+
+    fig = go.Figure()
+    for i, col in enumerate(faixas_cols):
+        label = faixas_labels.get(col, col)
+        cor   = palette[i]
+        vals  = [
+            float(df_top.loc[df_top[entity_col] == ent, f"{col}_pct"].iloc[0])
+            if not df_top[df_top[entity_col] == ent].empty else 0.0
+            for ent in entities_order
+        ]
+        fig.add_trace(go.Bar(
+            name=label,
+            y=entities_order,
+            x=vals,
+            orientation="h",
+            marker=dict(color=cor, line=dict(width=0.3, color="rgba(255,255,255,0.08)")),
+            text=[f"{v:.0f}%" if v >= 8 else "" for v in vals],
+            textposition="inside",
+            insidetextanchor="middle",
+            textfont=dict(size=8, color="#FFFFFF"),
+            hovertemplate=f"<b>{label}</b><br>%{{y}}<br>%{{x:.1f}}%<extra></extra>",
+        ))
+
+    _lay = _base_layout(title, height)
+    _lay["barmode"] = "stack"
+    _lay["bargap"]  = 0.22
+    _lay["xaxis"].update({"ticksuffix": "%", "range": [0, 105], "title": "% do Total"})
+    _lay["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.01, "xanchor": "center", "x": 0.5})
+    fig.update_layout(**_lay)
+    return fig
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab: CVNP — Crédito Vencido Não Pago
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_cvnp:
+    cvnp_cols_presentes = [c for c in CVNP_COLS if c in df_agg.columns]
+
+    if "CVNP" not in df_agg.columns or not cvnp_cols_presentes:
+        st.info("Dados de CVNP não disponíveis na base atual.")
+    else:
+        df_cvnp_filt = df_agg[df_agg["n_fundos"] >= min_fundos].copy()
+        df_cvnp_filt = df_cvnp_filt[df_cvnp_filt["CVNP"] > 0].copy()
+
+        subtab_cvnp_rank, subtab_cvnp_dist = st.tabs(["🏆 Ranking de CVNP", "📊 Distribuição por Faixa"])
+
+        with subtab_cvnp_rank:
+            st.markdown('<div class="section-label">Ranking de CVNP por Administradora</div>', unsafe_allow_html=True)
+            st.caption(
+                "Crédito Vencido Não Pago total (soma dos fundos) por administradora. "
+                "Solis destacada em dourado. Filtro de mínimo de fundos global aplicável."
+            )
+            if df_cvnp_filt.empty:
+                st.info("Nenhum dado de CVNP para os filtros aplicados.")
+            else:
+                st.plotly_chart(
+                    bar_ranking(
+                        df_cvnp_filt.rename(columns={"CVNP": "_val", "administrador": "_name"}),
+                        "_val", "_name",
+                        title="Ranking de CVNP por Administradora (R$)",
+                        top_n=20, highlight_name="Solis",
+                        is_percent=False, is_currency=True,
+                    ),
+                    use_container_width=True,
+                )
+                st.dataframe(
+                    df_cvnp_filt[["administrador", "n_fundos", "CVNP"]]
+                    .sort_values("CVNP", ascending=False)
+                    .rename(columns={"administrador": "Administradora", "n_fundos": "Nº Fundos", "CVNP": "CVNP Total (R$)"}),
+                    use_container_width=True, hide_index=True,
+                    column_config={"CVNP Total (R$)": st.column_config.NumberColumn(format="R$ %,.0f")},
+                )
+
+        with subtab_cvnp_dist:
+            st.markdown('<div class="section-label">Distribuição de CVNP por Faixa de Atraso</div>', unsafe_allow_html=True)
+            st.caption(
+                "Percentual do CVNP em cada faixa de atraso, para as top administradoras por volume. "
+                "Degradê **azul → laranja → âmbar** por faixa de vencimento crescente."
+            )
+            if df_cvnp_filt.empty:
+                st.info("Nenhum dado de CVNP para os filtros aplicados.")
+            else:
+                top_n_cvnp = st.slider("Top N Administradoras por CVNP", 5, 20, 10, key="adm_cvnp_topn")
+                df_cvnp_top = df_cvnp_filt.nlargest(top_n_cvnp, "CVNP").copy()
+                for c in cvnp_cols_presentes:
+                    df_cvnp_top[f"{c}_pct"] = (df_cvnp_top[c] / df_cvnp_top["CVNP"] * 100).fillna(0)
+
+                fig_cvnp = _stacked_dist_chart(
+                    df_top=df_cvnp_top,
+                    entity_col="administrador",
+                    faixas_cols=cvnp_cols_presentes,
+                    faixas_labels=CVNP_LABELS,
+                    total_col="CVNP",
+                    title="Distribuição de CVNP por Faixa — Top Administradoras (%)",
+                    height=max(400, top_n_cvnp * 38 + 120),
+                )
+                st.plotly_chart(fig_cvnp, use_container_width=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tab: Aging — Envelhecimento da Carteira
+# ─────────────────────────────────────────────────────────────────────────────
+with tab_aging:
+    aging_cols_presentes = [c for c in AGING_COLS if c in df_agg.columns]
+
+    if "Aging" not in df_agg.columns or not aging_cols_presentes:
+        st.info("Dados de Aging não disponíveis na base atual.")
+    else:
+        df_ag_filt = df_agg[df_agg["n_fundos"] >= min_fundos].copy()
+        df_ag_filt = df_ag_filt[df_ag_filt["Aging"] > 0].copy()
+
+        subtab_ag_rank, subtab_ag_dist = st.tabs(["🏆 Ranking de Aging", "📊 Distribuição por Faixa"])
+
+        with subtab_ag_rank:
+            st.markdown('<div class="section-label">Ranking de Aging por Administradora</div>', unsafe_allow_html=True)
+            st.caption(
+                "Volume total de Aging (envelhecimento da carteira de recebíveis) por administradora. "
+                "Solis destacada em dourado. Filtro de mínimo de fundos global aplicável."
+            )
+            if df_ag_filt.empty:
+                st.info("Nenhum dado de Aging para os filtros aplicados.")
+            else:
+                st.plotly_chart(
+                    bar_ranking(
+                        df_ag_filt.rename(columns={"Aging": "_val", "administrador": "_name"}),
+                        "_val", "_name",
+                        title="Ranking de Aging por Administradora (R$)",
+                        top_n=20, highlight_name="Solis",
+                        is_percent=False, is_currency=True,
+                    ),
+                    use_container_width=True,
+                )
+                st.dataframe(
+                    df_ag_filt[["administrador", "n_fundos", "Aging"]]
+                    .sort_values("Aging", ascending=False)
+                    .rename(columns={"administrador": "Administradora", "n_fundos": "Nº Fundos", "Aging": "Aging Total (R$)"}),
+                    use_container_width=True, hide_index=True,
+                    column_config={"Aging Total (R$)": st.column_config.NumberColumn(format="R$ %,.0f")},
+                )
+
+        with subtab_ag_dist:
+            st.markdown('<div class="section-label">Distribuição de Aging por Faixa de Prazo</div>', unsafe_allow_html=True)
+            st.caption(
+                "Percentual do Aging em cada faixa de prazo, para as top administradoras por volume. "
+                "Degradê **azul → laranja → âmbar** por faixa de prazo crescente."
+            )
+            if df_ag_filt.empty:
+                st.info("Nenhum dado de Aging para os filtros aplicados.")
+            else:
+                top_n_ag = st.slider("Top N Administradoras por Aging", 5, 20, 10, key="adm_aging_topn")
+                df_ag_top = df_ag_filt.nlargest(top_n_ag, "Aging").copy()
+                for c in aging_cols_presentes:
+                    df_ag_top[f"{c}_pct"] = (df_ag_top[c] / df_ag_top["Aging"] * 100).fillna(0)
+
+                fig_ag = _stacked_dist_chart(
+                    df_top=df_ag_top,
+                    entity_col="administrador",
+                    faixas_cols=aging_cols_presentes,
+                    faixas_labels=AGING_LABELS,
+                    total_col="Aging",
+                    title="Distribuição de Aging por Faixa — Top Administradoras (%)",
+                    height=max(400, top_n_ag * 38 + 120),
+                )
+                st.plotly_chart(fig_ag, use_container_width=True)
