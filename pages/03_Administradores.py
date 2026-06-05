@@ -404,15 +404,17 @@ def _stacked_dist_chart(
     _lay["barmode"] = "stack"
     _lay["bargap"]  = 0.22
     _lay["xaxis"].update({"ticksuffix": "%", "range": [0, 105], "title": "% do Total"})
-    _lay["margin"] = dict(l=16, r=24, t=90, b=36)  # t=90 garante espaço para legenda horizontal
+    _lay["margin"] = dict(l=16, r=170, t=56, b=16)  # r=170 acomoda legenda vertical à direita
     _lay["legend"] = {
-        "orientation": "h",
-        "yanchor": "bottom", "y": 1.02,
-        "xanchor": "center", "x": 0.5,
-        "font": dict(size=10, color="#E8EDF1"),
-        "bgcolor": "rgba(0,0,0,0)",
-        "itemwidth": 90,
-        "tracegroupgap": 0,
+        "orientation": "v",
+        "yanchor": "middle", "y": 0.5,
+        "xanchor": "left",  "x": 1.01,
+        "font": dict(size=9, color="#C8D4E0"),
+        "bgcolor": "rgba(16,36,50,0.80)",
+        "bordercolor": "rgba(137,155,183,0.20)",
+        "borderwidth": 1,
+        "itemwidth": 30,
+        "tracegroupgap": 2,
     }
     fig.update_layout(**_lay)
     return fig
@@ -482,12 +484,14 @@ with tab_cvnp:
                     title="Distribuição de CVNP por Faixa — Top Administradoras (%)",
                     height=max(400, top_n_cvnp * 38 + 120),
                 )
-                # Garante legenda correta independentemente do estado do slider
+                # Garante legenda vertical à direita independentemente do estado do slider
                 fig_cvnp.update_layout(legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02,
-                    xanchor="center", x=0.5,
-                    font=dict(size=11, color="#E8EDF1"),
-                    bgcolor="rgba(0,0,0,0)",
+                    orientation="v", yanchor="middle", y=0.5,
+                    xanchor="left", x=1.01,
+                    font=dict(size=9, color="#C8D4E0"),
+                    bgcolor="rgba(16,36,50,0.80)",
+                    bordercolor="rgba(137,155,183,0.20)",
+                    borderwidth=1,
                 ))
                 st.plotly_chart(fig_cvnp, use_container_width=True, key=f"adm_cvnp_dist_{top_n_cvnp}")
 
@@ -556,11 +560,13 @@ with tab_aging:
                     title="Distribuição de Aging por Faixa — Top Administradoras (%)",
                     height=max(400, top_n_ag * 38 + 120),
                 )
-                # Garante legenda correta independentemente do estado do slider
+                # Garante legenda vertical à direita independentemente do estado do slider
                 fig_ag.update_layout(legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02,
-                    xanchor="center", x=0.5,
-                    font=dict(size=11, color="#E8EDF1"),
-                    bgcolor="rgba(0,0,0,0)",
+                    orientation="v", yanchor="middle", y=0.5,
+                    xanchor="left", x=1.01,
+                    font=dict(size=9, color="#C8D4E0"),
+                    bgcolor="rgba(16,36,50,0.80)",
+                    bordercolor="rgba(137,155,183,0.20)",
+                    borderwidth=1,
                 ))
                 st.plotly_chart(fig_ag, use_container_width=True, key=f"adm_aging_dist_{top_n_ag}")

@@ -57,7 +57,19 @@ def _build_fig(title: str, y_title: str, height: int = 460) -> go.Figure:
     _layout = _base_layout(title, height)
     _layout["xaxis"].update(dict(title="Data Base", tickformat="%b/%Y", dtick="M1"))
     _layout["yaxis"].update(dict(title=y_title))
-    _layout["legend"].update(dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
+    # Legenda vertical à direita — nomes de gestoras/administradoras são muito longos
+    # para caber horizontalmente sem sobreposição
+    _layout["legend"].update(dict(
+        orientation="v",
+        yanchor="top", y=1.0,
+        xanchor="left", x=1.01,
+        font=dict(size=10, color="#C8D4E0"),
+        bgcolor="rgba(16,36,50,0.75)",
+        bordercolor="rgba(137,155,183,0.2)",
+        borderwidth=1,
+        itemwidth=30,
+    ))
+    _layout["margin"] = dict(l=60, r=220, t=72, b=48)  # r=220 acomoda legenda vertical
     fig.update_layout(**_layout)
     return fig
 
