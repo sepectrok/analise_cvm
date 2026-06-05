@@ -245,7 +245,7 @@ def render_sidebar(df: pd.DataFrame, show_date_filter: bool = True) -> dict:
         st.markdown(f"""
         <div class="sidebar-stats">
             <div class="sidebar-stat">
-                <span class="stat-value">{len(df)}</span>
+                <span class="stat-value">{df['nome_fundo'].nunique()}</span>
                 <span class="stat-label">FIDCs</span>
             </div>
             <div class="sidebar-stat">
