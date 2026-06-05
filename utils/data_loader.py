@@ -339,7 +339,7 @@ def build_df_fidc() -> pd.DataFrame:
         .drop_duplicates("cnpj_tratado")
         .set_index("cnpj_tratado")
     )
-
+    meta['nome_fundo'] = meta['nome_fundo'].str.upper().str.replace(r"FUNDO DE INVESTIMENTO EM DIREITOS CREDITÓRIOS \(\"FIDC\"\)", "", regex=True)
     # Join
     df_fidc = wide.set_index("cnpj_tratado").join(meta).reset_index()
     df_fidc.rename(columns={"Foco_Atuacao": "foco_atuacao"}, inplace=True)
@@ -352,10 +352,10 @@ def build_df_fidc() -> pd.DataFrame:
         df_fidc["cnpj_tratado"].astype(str).str.strip().str.zfill(14)
     )
     df_fidc["administrador"] = df_fidc["_cnpj_str"].map(
-        df_resp["Administrador_Razao_Social"]
+        df_resp["Administrador_Razao_Social"].str.upper()
     )
     df_fidc["gestor"] = df_fidc["_cnpj_str"].map(
-        df_resp["Gestor_Razao_Social"]
+        df_resp["Gestor_Razao_Social"].str.upper()
     )
     df_fidc.drop(columns=["_cnpj_str"], inplace=True)
     

@@ -89,8 +89,9 @@ def _base_layout(title: str = "", height: int = 420) -> dict:
     return layout
 
 
-def histogram_taxa(df: pd.DataFrame, col: str, height: int = 400) -> go.Figure:
-    """Elegant histogram with stat markers."""
+def histogram_taxa(df: pd.DataFrame, col: str, height: int = 400,
+                   df_solis: pd.DataFrame = None) -> go.Figure:
+    """Elegant histogram with stat markers. Accepts optional df_solis for Solis mean line."""
     label = TAXA_LABELS.get(col, col)
     s = df[col].dropna()
     if s.empty:
@@ -106,13 +107,18 @@ def histogram_taxa(df: pd.DataFrame, col: str, height: int = 400) -> go.Figure:
         ),
     ))
 
-    for i, (val, color, label_v) in enumerate([
-        (s.mean(),   PALETTE["amber"],  "Média"),
-        (s.median(), PALETTE["green"],  "Mediana"),
-    ]):
-        # yshift alternado para não colidir
-        yshift_val = 14 if i == 0 else -18
-        
+    stat_lines = [
+        (s.mean(),   PALETTE["amber"],  "Média Geral",  14),
+        (s.median(), PALETTE["green"],  "Mediana",      -18),
+    ]
+
+    # Linha da média Solis (se fornecido)
+    if df_solis is not None and not df_solis.empty and col in df_solis.columns:
+        s_solis = df_solis[col].dropna()
+        if not s_solis.empty:
+            stat_lines.append((s_solis.mean(), "rgba(96,165,250,1.0)", "Média Solis", 46))
+
+    for val, color, label_v, yshift_val in stat_lines:
         fig.add_vline(x=val, line=dict(color=color, dash="dot", width=1.5),
                       annotation=dict(
                           text=f"{label_v}: {val:.3f}%",

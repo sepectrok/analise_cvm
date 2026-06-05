@@ -115,6 +115,9 @@ def render_analytical_table(df: pd.DataFrame, key: str = "tbl"):
         col_cfg["CVNP Total (R$)"] = st.column_config.NumberColumn("CVNP Total", format="R$ %d", width="medium")
     if "Aging Total (R$)" in df_disp.columns:
         col_cfg["Aging Total (R$)"] = st.column_config.NumberColumn("Aging Total", format="R$ %d", width="medium")
+    
+    col_cfg["CVNP Total (R$)"] = st.column_config.NumberColumn("CVNP Total (R$)", format="R$ %,.0f", width="medium")
+    col_cfg["Aging Total (R$)"] = st.column_config.NumberColumn("Aging Total (R$)", format="R$ %,.0f", width="medium")
     for c in CVNP_COLS:
         lbl = CVNP_LABELS.get(c, c) + " (R$)"
         if lbl in df_disp.columns:

@@ -21,7 +21,7 @@ df_full = build_df_fidc()
 filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
-page_header("🎯", "Foco de Atuação", "Taxa média por segmento e competitividade relativa")
+page_header("", "Foco de Atuação", "Taxa média por segmento e competitividade relativa")
 
 taxa_cols_avail = [c for c in TAXA_COLS if c in df.columns and df[c].notna().sum() >= 3]
 
@@ -898,9 +898,9 @@ with tab_cvnp:
         else:
             cols_sel = [c for c in cvnp_presentes if CVNP_LABELS.get(c, c) in faixas_sel]
 
-            # Mercado e Solis usam o mesmo degradê, variando a opacidade para distinguir (Sol 90%, Mkt 70%)
+            # Mercado e Solis usam o mesmo degradê
             _solis_cores = _foco_make_grad(len(cvnp_presentes), alpha=0.90)
-            _gray_cores  = _foco_make_grad(len(cvnp_presentes), alpha=0.70)
+            _gray_cores  = _foco_make_grad(len(cvnp_presentes), alpha=0.90)
             # Mapeia col → índice global (mantém cor correta quando faixas são filtradas)
             _col_idx = {c: i for i, c in enumerate(cvnp_presentes)}
 
@@ -996,54 +996,54 @@ with tab_cvnp:
 
                 fig.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="#08090F",
+                    plot_bgcolor=PALETTE["bg"],
                     font=dict(
                         family="Inter, -apple-system, sans-serif",
-                        size=12, color="#94A3B8",
+                        size=12, color=PALETTE["text"],
                     ),
                     height=chart_h,
                     barmode="stack",
                     bargap=0.14,
                     bargroupgap=0.06,
-                    margin=dict(l=20, r=20, t=80, b=30),
+                    margin=dict(l=20, r=20, t=90, b=30),
                     legend=dict(
                         title=dict(
                             text="Faixa de atraso",
-                            font=dict(size=10, color="#64748B"),
+                            font=dict(size=10, color=PALETTE["text"]),
                         ),
-                        bgcolor="rgba(18,20,30,0.65)",
-                        bordercolor="rgba(148,163,184,0.12)",
+                        bgcolor="rgba(0,0,0,0)",
+                        bordercolor="rgba(148,163,184,0.18)",
                         borderwidth=1,
-                        font=dict(size=10, color="#CBD5E1"),
+                        font=dict(size=11, color=PALETTE["text_hi"]),
                         orientation="h",
                         yanchor="bottom", y=1.01,
                         xanchor="center", x=0.5,
-                        itemwidth=80,
+                        itemwidth=90,
                         tracegroupgap=0,
                     ),
                     hoverlabel=dict(
-                        bgcolor="#1A1D2B",
-                        bordercolor="rgba(148,163,184,0.15)",
-                        font=dict(family="Inter", size=12, color="#F1F5F9"),
+                        bgcolor="#1A3A52",
+                        bordercolor="rgba(137,155,183,0.25)",
+                        font=dict(family="Inter", size=12, color=PALETTE["text_hi"]),
                     ),
                     xaxis=dict(
-                        gridcolor="rgba(148,163,184,0.08)",
+                        gridcolor=PALETTE["grid"],
                         zerolinecolor="rgba(0,0,0,0)",
                         ticksuffix="%",
                         range=[0, 105],
                         title=dict(text="% do CVNP Total",
-                                   font=dict(size=10, color="#94A3B8")),
-                        tickfont=dict(size=9, color="#94A3B8"),
+                                   font=dict(size=10, color=PALETTE["text"])),
+                        tickfont=dict(size=9, color=PALETTE["text"]),
                     ),
                     yaxis=dict(
-                        gridcolor="rgba(148,163,184,0.04)",
+                        gridcolor="rgba(148,163,184,0.06)",
                         zerolinecolor="rgba(0,0,0,0)",
-                        tickfont=dict(size=10, color="#94A3B8"),
+                        tickfont=dict(size=10, color=PALETTE["text_hi"]),
                         automargin=True,
                     ),
                 )
 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, key=f"foco_cvnp_{len(segs_order)}_{len(grupos_ativos)}")
 
         # ── Tabela comparativa ────────────────────────────────────────────────
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
@@ -1170,7 +1170,7 @@ with tab_aging:
 
             # ── Paletas de cores ──────────────────────────────────────────────
             _solis_cores_ag = _foco_make_grad(len(aging_presentes), alpha=0.90)
-            _gray_cores_ag  = _foco_make_grad(len(aging_presentes), alpha=0.70)
+            _gray_cores_ag  = _foco_make_grad(len(aging_presentes), alpha=0.90)
 
             _col_idx_ag = {c: i for i, c in enumerate(aging_presentes)}
 
@@ -1259,54 +1259,54 @@ with tab_aging:
 
                 fig_ag.update_layout(
                     paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="#08090F",
+                    plot_bgcolor=PALETTE["bg"],
                     font=dict(
                         family="Inter, -apple-system, sans-serif",
-                        size=12, color="#94A3B8",
+                        size=12, color=PALETTE["text"],
                     ),
                     height=chart_h_ag,
                     barmode="stack",
                     bargap=0.14,
                     bargroupgap=0.06,
-                    margin=dict(l=20, r=20, t=80, b=30),
+                    margin=dict(l=20, r=20, t=90, b=30),
                     legend=dict(
                         title=dict(
                             text="Faixa de prazo",
-                            font=dict(size=10, color="#64748B"),
+                            font=dict(size=10, color=PALETTE["text"]),
                         ),
-                        bgcolor="rgba(18,20,30,0.65)",
-                        bordercolor="rgba(148,163,184,0.12)",
+                        bgcolor="rgba(0,0,0,0)",
+                        bordercolor="rgba(148,163,184,0.18)",
                         borderwidth=1,
-                        font=dict(size=10, color="#CBD5E1"),
+                        font=dict(size=11, color=PALETTE["text_hi"]),
                         orientation="h",
                         yanchor="bottom", y=1.01,
                         xanchor="center", x=0.5,
-                        itemwidth=80,
+                        itemwidth=90,
                         tracegroupgap=0,
                     ),
                     hoverlabel=dict(
-                        bgcolor="#1A1D2B",
-                        bordercolor="rgba(148,163,184,0.15)",
-                        font=dict(family="Inter", size=12, color="#F1F5F9"),
+                        bgcolor="#1A3A52",
+                        bordercolor="rgba(137,155,183,0.25)",
+                        font=dict(family="Inter", size=12, color=PALETTE["text_hi"]),
                     ),
                     xaxis=dict(
-                        gridcolor="rgba(148,163,184,0.08)",
+                        gridcolor=PALETTE["grid"],
                         zerolinecolor="rgba(0,0,0,0)",
                         ticksuffix="%",
                         range=[0, 105],
                         title=dict(text="% do Aging Total",
-                                   font=dict(size=10, color="#94A3B8")),
-                        tickfont=dict(size=9, color="#94A3B8"),
+                                   font=dict(size=10, color=PALETTE["text"])),
+                        tickfont=dict(size=9, color=PALETTE["text"]),
                     ),
                     yaxis=dict(
-                        gridcolor="rgba(148,163,184,0.04)",
+                        gridcolor="rgba(148,163,184,0.06)",
                         zerolinecolor="rgba(0,0,0,0)",
-                        tickfont=dict(size=10, color="#94A3B8"),
+                        tickfont=dict(size=10, color=PALETTE["text_hi"]),
                         automargin=True,
                     ),
                 )
 
-                st.plotly_chart(fig_ag, use_container_width=True)
+                st.plotly_chart(fig_ag, use_container_width=True, key=f"foco_aging_{len(segs_order_ag)}_{len(grupos_ativos_ag)}")
 
         # ── Tabela comparativa ────────────────────────────────────────────────
         st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)

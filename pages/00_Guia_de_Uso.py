@@ -11,7 +11,7 @@ from components.metrics_cards import page_header
 
 load_css()
 
-page_header("📖", "Guia de Uso do App", "Entenda como navegar e extrair o máximo valor da plataforma")
+page_header("","Guia de Uso do App", "Entenda como navegar e extrair o máximo valor da plataforma")
 
 st.markdown("""
 O **Benchmarking Institucional Solis** é uma plataforma analítica desenvolvida para monitorar o posicionamento competitivo e a estrutura de custos do mercado de FIDCs.

@@ -21,7 +21,7 @@ df_full = build_df_fidc()
 filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
-page_header("👔", "Agrupamento por Gestor",
+page_header("","Agrupamento por Gestor",
             "Concentração, clusterização e benchmark de taxas de gestão")
 
 df_ges = df.dropna(subset=["gestor"])
@@ -155,7 +155,14 @@ with tab2:
         # Filtrar apenas fundos dos gestores que atendem ao critério de min_fundos
         ges_validos = df_agg[df_agg["n_fundos"] >= min_f]["gestor"]
         df_dist_ges = df_ges[df_ges["gestor"].isin(ges_validos)]
-        st.plotly_chart(histogram_taxa(df_dist_ges, "taxa_gestao"), use_container_width=True)
+        # Isola fundos Solis para linha de média Solis no histograma
+        is_solis_hist = df_dist_ges["gestor"].str.contains("Solis", case=False, na=False)
+        df_solis_hist = df_dist_ges[is_solis_hist]
+        st.plotly_chart(
+            histogram_taxa(df_dist_ges, "taxa_gestao",
+                           df_solis=df_solis_hist if not df_solis_hist.empty else None),
+            use_container_width=True,
+        )
     else:
         st.info("Dados de taxa de gestão não disponíveis.")
 
@@ -163,7 +170,7 @@ with tab3:
     st.markdown('<div class="section-label">Remuneração Esperada por Gestor</div>', unsafe_allow_html=True)
     st.caption("`((1 + taxa_gestão/100)^(21/252) - 1) × PL_CVM` — Estimativa da receita mensal gerada pela taxa de gestão.")
 
-    subtab_real, subtab_imp = st.tabs(["📌 Taxa Real", "📊 Com Imputação de Média"])
+    subtab_real, subtab_imp = st.tabs(["Taxa Real", "Com Imputação de Média"])
 
     # ── Sub-tab: Taxa Real (somente fundos com taxa explícita no regulamento) ──
     with subtab_real:
@@ -252,7 +259,7 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-label">Inadimplência Média por Gestor</div>', unsafe_allow_html=True)
 
-    subtab_dc, subtab_pl = st.tabs(["📊 PDD / DC", "📉 PDD / PL"])
+    subtab_dc, subtab_pl = st.tabs(["PDD / DC", "PDD / PL"])
 
     # ── Sub-tab: PDD / DC ─────────────────────────────────────────────────────
     with subtab_dc:
@@ -373,7 +380,7 @@ with tab5:
 
 st.markdown("---")
 
-st.markdown('<div class="section-label">📋 Tabela de Remuneração e Inadimplência Detalhada por Fundo</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">Tabela de Remuneração e Inadimplência Detalhada por Fundo</div>', unsafe_allow_html=True)
 st.caption("Detalhamento completo por fundo e gestor contendo patrimônio líquido, taxas de gestão, remuneração estimada e inadimplência.")
 
 # Criar DataFrame formatado para visualização e download
@@ -403,7 +410,7 @@ existing_cols = [c for c in cols_map.keys() if c in df_down.columns]
 df_down_filtered = df_down[existing_cols].rename(columns=cols_map)
 
 # Campo de Busca
-search_query = st.text_input("🔍 Busca na tabela detalhada", key="gestores_detalhada_search", placeholder="Buscar por gestor, fundo ou CNPJ...")
+search_query = st.text_input("Busca na tabela detalhada", key="gestores_detalhada_search", placeholder="Buscar por gestor, fundo ou CNPJ...")
 if search_query:
     mask = df_down_filtered.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
     df_down_filtered = df_down_filtered[mask]
@@ -533,26 +540,48 @@ with tab_cvnp:
         pct_solis   = _cvnp_pct(df_s)
         pct_mercado = _cvnp_pct(df_mk)
 
-        n_cvnp  = len(cvnp_cols_presentes)
-        pal_cvnp = _ges_make_grad(n_cvnp, 0.88)
-        labels  = [CVNP_LABELS.get(c, c) for c in cvnp_cols_presentes]
+        n_cvnp   = len(cvnp_cols_presentes)
+        pal_cvnp = _ges_make_grad(n_cvnp, 0.92)
+        labels   = [CVNP_LABELS.get(c, c) for c in cvnp_cols_presentes]
 
+        # Gráfico de barras HORIZONTAIS agrupadas por faixa — Mercado vs Solis
         fig_cvnp = go.Figure()
+
         for i, (col, lbl) in enumerate(zip(cvnp_cols_presentes, labels)):
             cor = pal_cvnp[i]
+            # Converte a cor rgba para uma versão levemente mais clara para Solis
+            solis_val = pct_solis.get(col, 0)
+            mkt_val   = pct_mercado.get(col, 0)
+
             fig_cvnp.add_trace(go.Bar(
                 name=lbl,
-                x=["Mercado", "Solis"],
-                y=[pct_mercado.get(col, 0), pct_solis.get(col, 0)],
-                marker_color=cor,
-                hovertemplate=f"<b>{lbl}</b><br>%{{x}}: %{{y:.2f}}%<extra></extra>",
+                y=["Mercado", "Solis"],
+                x=[mkt_val, solis_val],
+                orientation="h",
+                marker=dict(
+                    color=cor,
+                    line=dict(width=0.5, color="rgba(255,255,255,0.15)"),
+                ),
+                text=[f"{mkt_val:.1f}%" if mkt_val >= 5 else "",
+                      f"{solis_val:.1f}%" if solis_val >= 5 else ""],
+                textposition="inside",
+                insidetextanchor="middle",
+                textfont=dict(size=10, color="#FFFFFF"),
+                hovertemplate=f"<b>{lbl}</b><br>%{{y}}: %{{x:.2f}}%<extra></extra>",
             ))
-        _lay_cvnp = _base_layout("Distribuição do CVNP por Faixa de Atraso (%)", 440)
+
+        _lay_cvnp = _base_layout("Distribuição do CVNP por Faixa de Atraso (%)", 340)
         _lay_cvnp["barmode"] = "stack"
-        _lay_cvnp["margin"].update({"t": 72})
-        _lay_cvnp["yaxis"].update({"title": "% do CVNP Total", "ticksuffix": "%"})
-        _lay_cvnp["xaxis"].update({"title": "Grupo"})
-        _lay_cvnp["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "center", "x": 0.5})
+        _lay_cvnp["bargap"]  = 0.35
+        _lay_cvnp["margin"]  = dict(l=80, r=24, t=72, b=36)
+        _lay_cvnp["xaxis"].update({"ticksuffix": "%", "range": [0, 105], "title": "% do CVNP Total"})
+        _lay_cvnp["yaxis"].update({"title": "", "tickfont": dict(size=13, color="#FFFFFF")})
+        _lay_cvnp["legend"].update({
+            "orientation": "h", "yanchor": "bottom", "y": 1.02,
+            "xanchor": "center", "x": 0.5,
+            "font": dict(size=11, color="#E8EDF1"),
+            "bgcolor": "rgba(0,0,0,0)",
+        })
         fig_cvnp.update_layout(**_lay_cvnp)
         st.plotly_chart(fig_cvnp, use_container_width=True)
 
@@ -608,24 +637,45 @@ with tab_aging:
         pct_mercado_ag = _aging_pct_prop(df_mk_ag)
 
         n_ag      = len(aging_cols_presentes_ges)
-        pal_ag    = _ges_make_grad(n_ag, 0.88)
+        pal_ag    = _ges_make_grad(n_ag, 0.92)
         labels_ag = [AGING_LABELS.get(c, c) for c in aging_cols_presentes_ges]
 
+        # Gráfico de barras HORIZONTAIS agrupadas por faixa — Mercado vs Solis
         fig_ag = go.Figure()
+
         for i, (col, lbl) in enumerate(zip(aging_cols_presentes_ges, labels_ag)):
             cor = pal_ag[i]
+            solis_val = pct_solis_ag.get(col, 0)
+            mkt_val   = pct_mercado_ag.get(col, 0)
+
             fig_ag.add_trace(go.Bar(
                 name=lbl,
-                x=["Mercado", "Solis"],
-                y=[pct_mercado_ag.get(col, 0), pct_solis_ag.get(col, 0)],
-                marker_color=cor,
-                hovertemplate=f"<b>{lbl}</b><br>%{{x}}: %{{y:.2f}}%<extra></extra>",
+                y=["Mercado", "Solis"],
+                x=[mkt_val, solis_val],
+                orientation="h",
+                marker=dict(
+                    color=cor,
+                    line=dict(width=0.5, color="rgba(255,255,255,0.15)"),
+                ),
+                text=[f"{mkt_val:.1f}%" if mkt_val >= 5 else "",
+                      f"{solis_val:.1f}%" if solis_val >= 5 else ""],
+                textposition="inside",
+                insidetextanchor="middle",
+                textfont=dict(size=10, color="#FFFFFF"),
+                hovertemplate=f"<b>{lbl}</b><br>%{{y}}: %{{x:.2f}}%<extra></extra>",
             ))
-        _lay_ag = _base_layout("Distribuição do Aging por Faixa de Prazo (%)", 440)
+
+        _lay_ag = _base_layout("Distribuição do Aging por Faixa de Prazo (%)", 340)
         _lay_ag["barmode"] = "stack"
-        _lay_ag["margin"].update({"t": 72})
-        _lay_ag["yaxis"].update({"title": "% do Aging Total", "ticksuffix": "%"})
-        _lay_ag["xaxis"].update({"title": "Grupo"})
-        _lay_ag["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "center", "x": 0.5})
+        _lay_ag["bargap"]  = 0.35
+        _lay_ag["margin"]  = dict(l=80, r=24, t=72, b=36)
+        _lay_ag["xaxis"].update({"ticksuffix": "%", "range": [0, 105], "title": "% do Aging Total"})
+        _lay_ag["yaxis"].update({"title": "", "tickfont": dict(size=13, color="#FFFFFF")})
+        _lay_ag["legend"].update({
+            "orientation": "h", "yanchor": "bottom", "y": 1.02,
+            "xanchor": "center", "x": 0.5,
+            "font": dict(size=11, color="#E8EDF1"),
+            "bgcolor": "rgba(0,0,0,0)",
+        })
         fig_ag.update_layout(**_lay_ag)
         st.plotly_chart(fig_ag, use_container_width=True)

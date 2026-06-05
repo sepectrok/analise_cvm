@@ -16,7 +16,7 @@ df_full = build_df_fidc()
 filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
-page_header("📋", "Tabela Analítica",
+page_header("", "Tabela Analítica",
             "Base completa de FIDCs com filtros, busca e exportação")
 
 # ── Quick stats ────────────────────────────────────────────────────────────────

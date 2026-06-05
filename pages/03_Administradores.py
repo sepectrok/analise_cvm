@@ -23,7 +23,7 @@ df_full = build_df_fidc()
 filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
-page_header("🏢", "Agrupamento por Administrador",
+page_header("","Agrupamento por Administrador",
             "Ranking, taxas médias e concentração por entidade administradora")
 
 df_adm = df.dropna(subset=["administrador"])
@@ -136,7 +136,7 @@ with tab3:
     st.markdown('<div class="section-label">Remuneração Esperada por Administrador</div>', unsafe_allow_html=True)
     st.caption("`((1 + taxa_administração/100)^(21/252) - 1) × PL_CVM` — Estimativa da receita mensal gerada pela taxa de administração.")
 
-    subtab_real, subtab_imp = st.tabs(["📌 Taxa Real", "📊 Com Imputação de Média"])
+    subtab_real, subtab_imp = st.tabs(["Taxa Real", "Com Imputação de Média"])
 
     # ── Sub-tab: Taxa Real ────────────────────────────────────────────────────
     with subtab_real:
@@ -224,7 +224,7 @@ with tab3:
 with tab4:
     st.markdown('<div class="section-label">Inadimplência Média por Administrador</div>', unsafe_allow_html=True)
 
-    subtab_dc, subtab_pl = st.tabs(["📊 PDD / DC", "📉 PDD / PL"])
+    subtab_dc, subtab_pl = st.tabs(["PDD / DC", "PDD / PL"])
 
     # ── Sub-tab: PDD / DC ─────────────────────────────────────────────────────
     with subtab_dc:
@@ -404,7 +404,16 @@ def _stacked_dist_chart(
     _lay["barmode"] = "stack"
     _lay["bargap"]  = 0.22
     _lay["xaxis"].update({"ticksuffix": "%", "range": [0, 105], "title": "% do Total"})
-    _lay["legend"].update({"orientation": "h", "yanchor": "bottom", "y": 1.01, "xanchor": "center", "x": 0.5})
+    _lay["margin"] = dict(l=16, r=24, t=90, b=36)  # t=90 garante espaço para legenda horizontal
+    _lay["legend"] = {
+        "orientation": "h",
+        "yanchor": "bottom", "y": 1.02,
+        "xanchor": "center", "x": 0.5,
+        "font": dict(size=10, color="#E8EDF1"),
+        "bgcolor": "rgba(0,0,0,0)",
+        "itemwidth": 90,
+        "tracegroupgap": 0,
+    }
     fig.update_layout(**_lay)
     return fig
 
@@ -421,7 +430,7 @@ with tab_cvnp:
         df_cvnp_filt = df_agg[df_agg["n_fundos"] >= min_fundos].copy()
         df_cvnp_filt = df_cvnp_filt[df_cvnp_filt["CVNP"] > 0].copy()
 
-        subtab_cvnp_rank, subtab_cvnp_dist = st.tabs(["🏆 Ranking de CVNP", "📊 Distribuição por Faixa"])
+        subtab_cvnp_rank, subtab_cvnp_dist = st.tabs(["Ranking de CVNP", "Distribuição por Faixa"])
 
         with subtab_cvnp_rank:
             st.markdown('<div class="section-label">Ranking de CVNP por Administradora</div>', unsafe_allow_html=True)
@@ -473,7 +482,14 @@ with tab_cvnp:
                     title="Distribuição de CVNP por Faixa — Top Administradoras (%)",
                     height=max(400, top_n_cvnp * 38 + 120),
                 )
-                st.plotly_chart(fig_cvnp, use_container_width=True)
+                # Garante legenda correta independentemente do estado do slider
+                fig_cvnp.update_layout(legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="center", x=0.5,
+                    font=dict(size=11, color="#E8EDF1"),
+                    bgcolor="rgba(0,0,0,0)",
+                ))
+                st.plotly_chart(fig_cvnp, use_container_width=True, key=f"adm_cvnp_dist_{top_n_cvnp}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -488,7 +504,7 @@ with tab_aging:
         df_ag_filt = df_agg[df_agg["n_fundos"] >= min_fundos].copy()
         df_ag_filt = df_ag_filt[df_ag_filt["Aging"] > 0].copy()
 
-        subtab_ag_rank, subtab_ag_dist = st.tabs(["🏆 Ranking de Aging", "📊 Distribuição por Faixa"])
+        subtab_ag_rank, subtab_ag_dist = st.tabs(["Ranking de Aging", "Distribuição por Faixa"])
 
         with subtab_ag_rank:
             st.markdown('<div class="section-label">Ranking de Aging por Administradora</div>', unsafe_allow_html=True)
@@ -540,4 +556,11 @@ with tab_aging:
                     title="Distribuição de Aging por Faixa — Top Administradoras (%)",
                     height=max(400, top_n_ag * 38 + 120),
                 )
-                st.plotly_chart(fig_ag, use_container_width=True)
+                # Garante legenda correta independentemente do estado do slider
+                fig_ag.update_layout(legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="center", x=0.5,
+                    font=dict(size=11, color="#E8EDF1"),
+                    bgcolor="rgba(0,0,0,0)",
+                ))
+                st.plotly_chart(fig_ag, use_container_width=True, key=f"adm_aging_dist_{top_n_ag}")

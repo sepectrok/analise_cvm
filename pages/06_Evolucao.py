@@ -39,7 +39,7 @@ def _to_month_start(series: pd.Series) -> pd.Series:
 df = df.copy()
 df["Data_Posicao"] = _to_month_start(df["Data_Posicao"])
 
-page_header("📈", "Evolução Histórica",
+page_header("", "Evolução Histórica",
             "Análise temporal de remuneração, inadimplência e subordinação")
 
 st.markdown("---")

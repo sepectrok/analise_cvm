@@ -23,8 +23,8 @@ def page_header(icon: str, title: str, subtitle: str = ""):
             <h1 style="background:{_GRAD_TITLE}; -webkit-background-clip:text;
                        -webkit-text-fill-color:transparent; background-clip:text;
                        display:inline-block; margin:0; padding:0;
-                       font-size:1.4rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
-            {"" if not subtitle else f'<p style="margin:4px 0 0 0; font-size:0.8rem; color:var(--text-muted); font-weight:300;">{subtitle}</p>'}
+                       font-size:1.9rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
+            {"" if not subtitle else f'<p style="margin:6px 0 0 0; font-size:0.82rem; color:#899BB7; font-weight:300;">{subtitle}</p>'}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -63,7 +63,7 @@ def institutional_header(title: str, subtitle: str = "", logo_path: str = ""):
             <h1 style="background:{_GRAD_TITLE}; -webkit-background-clip:text;
                        -webkit-text-fill-color:transparent; background-clip:text;
                        display:inline-block; margin:0; padding:0;
-                       font-size:1.5rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
+                       font-size:1.8rem; font-weight:600; font-family:Figtree,sans-serif;">{title}</h1>
             <p style="margin:6px 0 0 0; font-size:0.85rem;
                       color:var(--text-secondary); font-weight:300;">{subtitle}</p>
         </div>

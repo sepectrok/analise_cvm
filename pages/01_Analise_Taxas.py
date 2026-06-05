@@ -17,7 +17,7 @@ df_full = build_df_fidc()
 filters = render_sidebar(df_full)
 df = apply_sidebar_filters(df_full, filters)
 
-page_header("📈", "Análise de Taxas",
+page_header("","Análise de Taxas",
             "Distribuições estatísticas e comparativos entre tipos de taxa")
 
 available = get_available_taxas(df)
@@ -38,7 +38,7 @@ st.markdown("---")
 
 # ── Tab layout ─────────────────────────────────────────────────────────────────
 tab1, tab2, tab3 = st.tabs(
-    ["📊 Histograma", "📦 Boxplot por Segmento", "📋 Estatísticas"]
+    ["Histograma", "Boxplot por Segmento", "Estatísticas"]
 )
 
 with tab1:
