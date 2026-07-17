@@ -16,6 +16,7 @@ from components.tables import render_entity_ranking
 from utils.data_loader import (
     build_df_fidc, TAXA_LABELS, TAXA_COLS, add_subordinacao_ponderada,
     CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS,
+    weighted_mean, weighted_mean_by_group,
 )
 
 load_css()
@@ -82,6 +83,12 @@ df_agg = (
     .sort_values("n_fundos", ascending=False)
 )
 
+# Substituir médias simples de taxas por médias ponderadas pelo PL_CVM
+for _tc in taxa_cols_avail:
+    _pond = weighted_mean_by_group(df_adm, "administrador", _tc)
+    if not _pond.empty:
+        df_agg[_tc] = df_agg["administrador"].map(_pond)
+
 # Subordinação ponderada: Σ(SB) / Σ(SB+MZ+SR) por administrador
 df_agg = add_subordinacao_ponderada(df_agg, df_adm, groupby_col="administrador")
 
@@ -105,8 +112,9 @@ c1, c2, c3 = st.columns(3)
 c1.metric("Administradores", df_agg["administrador"].nunique())
 c2.metric("Total de FIDCs", int(df_agg["n_fundos"].sum()))
 if "taxa_administracao" in df_agg.columns:
-    wa = (df_agg["taxa_administracao"] * df_agg["n_fundos"]).sum() / df_agg["n_fundos"].sum()
-    c3.metric("Taxa Adm. Ponderada (por nº fundos)", f"{wa:.3f}%")
+    # Ponderado pelo PL total de cada administrador
+    wa = weighted_mean(df_adm, "taxa_administracao")
+    c3.metric("Taxa Adm. Pond. por PL", f"{wa:.3f}%")
 
 st.markdown("---")
 

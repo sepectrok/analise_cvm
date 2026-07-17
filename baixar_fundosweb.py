@@ -8,7 +8,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 # 1. Pastas e Arquivos
-repositorio_salvar = r"Documentos_CVM"
+repositorio_salvar = r"C:\Users\marcos.chaves\Documents\Python\CVM\CVM_Analise_Mercado\Documentos_CVM"
 caminho_excel = os.path.join(repositorio_salvar, "Relatorio_Regulamentos_CVM.xlsx")
 
 print("Carregando o Excel...")

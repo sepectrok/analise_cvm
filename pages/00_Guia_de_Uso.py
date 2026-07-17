@@ -25,12 +25,15 @@ Os dados apresentados são extraídos de regulamentos da CVM por meio de process
 
 ### Navegação e Funcionalidades
 
+#### Início
 * **1. Visão Geral:** Painel executivo com os principais indicadores (KPIs) de mercado e o posicionamento relativo da Solis.
-* **2. Análise de Taxas:** Painel estatístico dedicado à distribuição matemática de custos, histogramas e identificação de anomalias.
-* **3. Administradores:** Mapeamento de concentração fiduciária (*market share*) e comparativo de taxas de administração.
-* **4. Gestores:** Cenário competitivo das gestoras de recursos, englobando volume de fundos sob gestão e estrutura de cobrança.
-* **5. Foco de Atuação:** Segmentação setorial (ex: Agronegócio, Multimercado) para análise comparativa de prêmios e custos por área de crédito.
-* **6. Tabela Analítica:** Base granular de todos os FIDCs mapeados, com suporte a filtros cruzados e exportação de dados (Excel/CSV) para modelagens externas.
+* **2. Principais Gestoras:** Painel com os dados agregados com diferentes visões das principais gestora do Mercado de FIDC's.
+#### Analises de Mercado
+* **1. Análise de Taxas:** Painel estatístico dedicado à distribuição matemática de custos, histogramas e identificação de anomalias.
+* **2. Administradores:** Mapeamento de concentração fiduciária (*market share*) e comparativo de taxas de administração.
+* **3. Gestores:** Cenário competitivo das gestoras de recursos, englobando volume de fundos sob gestão e estrutura de cobrança.
+* **4. Foco de Atuação:** Segmentação setorial (ex: Agronegócio, Multimercado) para análise comparativa de prêmios e custos por área de crédito.
+* **5. Tabela Analítica:** Base granular de todos os FIDCs mapeados, com suporte a filtros cruzados e exportação de dados (Excel/CSV) para modelagens externas.
 
 ---
 """,

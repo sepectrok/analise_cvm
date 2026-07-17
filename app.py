@@ -13,8 +13,9 @@ st.set_page_config(
 )
 
 pages = {
-    "Principal": [
+    "Inicio": [
         st.Page("Visao_Geral.py", title="Visão Geral"),
+        st.Page("pages/09_Principais_insights.py", title="Principais Gestoras"),
         st.Page("pages/00_Guia_de_Uso.py", title="Guia de Uso"),
     ],
     "Análises de Mercado": [

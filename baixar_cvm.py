@@ -21,15 +21,19 @@ connection_string = 'DRIVER={ODBC Driver 17 for SQL Server};SERVER=' + server + 
 params = urllib.parse.quote_plus(connection_string)
 engine = create_engine(f"mssql+pyodbc:///?odbc_connect={params}")
 
-query_cnpjs = '''SELECT DISTINCT(ID_CNPJ_Fundo)
-FROM CVM.Informe_Mensal.inf_mensal_fidc_tab_I
-WHERE Data_Posicao = '2026-03-31' '''
+#query_cnpjs = '''SELECT DISTINCT(ID_CNPJ_Fundo)
+#FROM CVM.Informe_Mensal.inf_mensal_fidc_tab_I
+#WHERE Data_Posicao = '2026-03-31' '''
+#
+#print("Consultando os CNPJs no banco de dados...")
+#df_cnpj_cvm = pd.read_sql(query_cnpjs, engine)
+#fundos_a_buscar = df_cnpj_cvm['ID_CNPJ_Fundo'].dropna().unique()
+#print(f"Total de fundos distintos encontrados: {len(fundos_a_buscar)}")
 
-print("Consultando os CNPJs no banco de dados...")
-df_cnpj_cvm = pd.read_sql(query_cnpjs, engine)
-fundos_a_buscar = df_cnpj_cvm['ID_CNPJ_Fundo'].dropna().unique()
-print(f"Total de fundos distintos encontrados: {len(fundos_a_buscar)}")
-
+planilha_pendentes = pd.read_excel("dados_faltantes.xlsx",sheet_name="CVM")
+planilha_pendentes = planilha_pendentes[~planilha_pendentes['Tem na Raspagem'].isin(['Raspagem'])]
+fundos_a_buscar = planilha_pendentes['ID_CNPJ_Fundo'].unique()
+print(f"Total de fundos faltantes encontrados: {len(fundos_a_buscar)}")
 # 2. Configurar pastas
 repositorio_salvar = r"C:\Users\marcos.chaves\Documents\Python\CVM\CVM_Analise_Mercado\Documentos_CVM"
 if not os.path.exists(repositorio_salvar):
@@ -105,25 +109,39 @@ for cnpj in fundos_a_buscar:
             if not os.path.exists(caminho_arquivo):
                 # Usamos fetch por debaixo dos panos para que o Chrome NÃO force o download para a pasta Downloads padrão do Windows.
                 # Assim conseguimos interceptar a string JSON e processar o Base64, e nós mesmos salvamos na pasta certa.
-                texto_pdf = driver.execute_async_script("""
+                # Lemos como ArrayBuffer e convertemos para base64 no próprio JS.
+                # Isso evita corrupção UTF-8 quando o FNET devolve o PDF binário diretamente
+                # (em vez de um JSON com a string base64).
+                b64_pdf = driver.execute_async_script("""
                     var uri = arguments[0];
                     var callback = arguments[1];
                     fetch(uri)
-                      .then(response => response.text())
-                      .then(text => callback(text))
-                      .catch(err => callback(null));
+                      .then(function(response) { return response.arrayBuffer(); })
+                      .then(function(buffer) {
+                          var bytes = new Uint8Array(buffer);
+                          var binary = '';
+                          for (var i = 0; i < bytes.byteLength; i++) {
+                              binary += String.fromCharCode(bytes[i]);
+                          }
+                          callback(btoa(binary));
+                      })
+                      .catch(function(err) { callback(null); });
                 """, url_download)
                 
-                if texto_pdf:
+                if b64_pdf:
                     try:
-                        # O FNET devolve JSON com as aspas (ex: '"JVBERi0x..."')
-                        conteudo_b64 = json.loads(texto_pdf)
-                        conteudo_pdf = base64.b64decode(conteudo_b64)
+                        # O JS já nos devolve a string base64 pura do conteúdo binário do PDF.
+                        # Decodificamos e verificamos a assinatura '%PDF' para confirmar.
+                        conteudo_pdf = base64.b64decode(b64_pdf)
+                        if conteudo_pdf[:4] != b'%PDF':
+                            # Caso raro: o FNET pode ter retornado um JSON com b64 aninhado
+                            inner = json.loads(conteudo_pdf)
+                            conteudo_pdf = base64.b64decode(inner)
                         
-                        # Salvando o arquivo de fato usando o python, diretamente na nossa pasta "Documentos_CVM"
+                        # Salvando o arquivo diretamente na nossa pasta "Documentos_CVM"
                         with open(caminho_arquivo, 'wb') as f:
                             f.write(conteudo_pdf)
-                        print(f"[{cnpj_clean}] Download concluído e corrigido: {nome_arquivo}")
+                        print(f"[{cnpj_clean}] Download concluído: {nome_arquivo}")
                     except Exception as ex:
                         print(f"[{cnpj_clean}] Falha na conversão base64. Erro: {ex}")
                 else:

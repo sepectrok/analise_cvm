@@ -12,7 +12,7 @@ import streamlit as st
 # ─── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR              = os.path.dirname(os.path.dirname(__file__))
 DATA_FILE             = os.path.join(BASE_DIR, "regulamentos_analisados.xlsx")
-RESP_FILE             = os.path.join(BASE_DIR, "responsaveis_fundo.xlsx")
+
 PL_FILE               = os.path.join(BASE_DIR, "base_pl_fundos.xlsx")
 INADIMPLENCIA_FILE    = os.path.join(BASE_DIR, "CVM_Carteira_202603 1.xlsx")
 
@@ -154,6 +154,7 @@ def load_responsaveis() -> pd.DataFrame:
     Carrega a tabela auxiliar de responsáveis por fundo.
     Normaliza o CNPJ para string de 14 dígitos (zfill) para garantir join correto.
     """
+    RESP_FILE             = os.path.join(BASE_DIR, "responsaveis_fundo.xlsx")
     df_resp = pd.read_excel(RESP_FILE)
     df_resp["cnpj_str"] = (
         df_resp["ID_CNPJ_Fundo"]
@@ -280,6 +281,69 @@ def add_subordinacao_ponderada(df_agg: pd.DataFrame,
     df_agg["Sub_JR"]    = df_agg[groupby_col].map(sub_sums["Sub_JR"])
     df_agg["Sub_JR_MZ"] = df_agg[groupby_col].map(sub_sums["Sub_JR_MZ"])
     return df_agg
+
+
+# ─── Média ponderada de taxas pelo PL_CVM ─────────────────────────────────────
+
+def weighted_mean(df: pd.DataFrame, col: str, weight_col: str = "PL_CVM") -> float:
+    """
+    Calcula a média ponderada de uma coluna de taxa pelo PL_CVM.
+
+    Fórmula: Σ(taxa_i × PL_i) / Σ(PL_i)
+
+    Parâmetros
+    ----------
+    df         : DataFrame com os fundos
+    col        : nome da coluna de taxa (ex: 'taxa_gestao')
+    weight_col : coluna de peso (padrão: 'PL_CVM')
+
+    Retorna
+    -------
+    float : média ponderada, ou np.nan se não houver dados válidos
+    """
+
+    mask = df[col].notna() & df[weight_col].notna() & (df[weight_col] > 0)
+    sub = df[mask]
+    
+    return float((sub[col] * sub[weight_col]).sum() / sub[weight_col].sum())
+
+
+def weighted_mean_by_group(
+    df: pd.DataFrame,
+    group_col: str,
+    taxa_col: str,
+    weight_col: str = "PL_CVM",
+) -> pd.Series:
+    """
+    Calcula a média ponderada de uma taxa agrupando por uma coluna de entidade.
+
+    Retorna uma Series indexada pelo group_col com a taxa ponderada de cada grupo.
+    Grupos sem peso válido recebem fallback de média simples.
+    """
+    if taxa_col not in df.columns or weight_col not in df.columns:
+        if taxa_col in df.columns:
+            return df.groupby(group_col)[taxa_col].mean()
+        return pd.Series(dtype=float, name=taxa_col)
+
+    mask = df[taxa_col].notna() & df[weight_col].notna() & (df[weight_col] > 0)
+    df_v = df[mask].copy()
+
+    if df_v.empty:
+        return df.groupby(group_col)[taxa_col].mean()
+
+    num = df_v.groupby(group_col).apply(
+        lambda g: (g[taxa_col] * g[weight_col]).sum()
+    )
+    den = df_v.groupby(group_col)[weight_col].sum()
+    result = (num / den).rename(taxa_col)
+
+    # Fallback para grupos sem peso válido: usa média simples
+    simple = df.groupby(group_col)[taxa_col].mean()
+    result = result.reindex(simple.index)
+    missing = result.isna() & simple.notna()
+    result[missing] = simple[missing]
+
+    return result
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -414,6 +478,173 @@ def build_df_fidc() -> pd.DataFrame:
     df_fidc.drop(columns=["cnpj_str"], inplace=True)
 
     return df_fidc
+
+# build com principais responsaveis
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def build_principais_gestoras():
+    df = build_df_fidc()
+    df_resp = load_responsaveis()
+
+    # Mapa de cnpj_gestor → Nome_Gestora (construído a partir do dicionário, é 1:1)
+    _dados_gestoras = {
+        "ANGÁ":      ["35950923000199", "09452272000105"],
+        "POLÍGONO":  ["43241789000185"],
+        "ARTESANAL": ["03084098000109", "30701673000130", "33576954000104", "55930185000125", "55704616000135"],
+        "JIVE":      ["07170960000149", "13966641000147", "12600032000107"],
+        "VALORA":    ["17482086000139", "07559989000117", "57369679000108"],
+        "CATALISE":  ["18223260000191"],
+        "ORRAM":     ["33459864000125"],
+        "GUARDIAN":  ["37414193000137", "54882123000122"],
+        "M8":        ["18038439000179"],
+        "SOLIS":     ["17254708000171"],
+    }
+    # Dicionário cnpj_gestor → Nome_Gestora (único, sem duplicatas)
+    _cnpj_to_nome = {
+        cnpj: nome
+        for nome, cnpjs in _dados_gestoras.items()
+        for cnpj in cnpjs
+    }
+    cnpj_gestoras = set(_cnpj_to_nome.keys())
+
+    # ── Tabela de lookup: gestor (nome) → cnpj_gestor (ÚNICO por gestor) ──────
+    # load_responsaveis() é indexado por CNPJ do FUNDO, logo tem uma linha por fundo.
+    # Precisamos de uma linha por (gestor, cnpj_gestor) para evitar explosão N×M no merge.
+    df_lookup = (
+        df_resp[["Gestor_Identificador", "Gestor_Razao_Social"]]
+        .copy()
+        .assign(
+            gestor=lambda x: x["Gestor_Razao_Social"].str.upper().str.strip(),
+            cnpj_gestor=lambda x: (
+                x["Gestor_Identificador"]
+                .astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.strip()
+                .str.zfill(14)
+            ),
+        )
+        [["gestor", "cnpj_gestor"]]
+        # Manter apenas gestoras mapeadas e eliminar duplicatas para evitar merge cartesiano
+        .pipe(lambda d: d[d["cnpj_gestor"].isin(cnpj_gestoras)])
+        .drop_duplicates(subset=["gestor", "cnpj_gestor"])
+    )
+
+    # ── Merge 1: enriquecer df com cnpj_gestor ────────────────────────────────
+    # LEFT join em "gestor" (nome). Como df_lookup tem no máximo uma linha por
+    # (gestor, cnpj_gestor), cada fundo em df casa com no máximo um registro.
+    df_principais = pd.merge(df, df_lookup, on="gestor", how="left")
+    df_principais = df_principais[df_principais["cnpj_gestor"].notna()].copy()
+
+    # ── Enriquecer com Nome_Gestora via mapa direto (sem segundo merge) ───────
+    df_principais["Nome_Gestora"] = df_principais["cnpj_gestor"].map(_cnpj_to_nome)
+
+    # Garantia: remover linhas sem nome (cnpj_gestor não encontrado no mapa)
+    df_principais = df_principais[df_principais["Nome_Gestora"].notna()]
+
+    # Segurança extra: eliminar qualquer duplicata residual por (cnpj_tratado, Data_Posicao)
+    df_principais = df_principais.drop_duplicates(subset=["cnpj_tratado", "Data_Posicao"])
+
+    return df_principais
+
+
+
+# ─── Mapeamento de tipos de prestadores de serviço ──────────────────────────────
+# "Agente de Recebimento" é tratado como sinônimo de "Agente de Cobrança"
+PRESTADOR_TIPOS: dict[str, list[str]] = {
+    "Agente de Cobrança": [
+        "Cobranca_1_Razao_Social",
+        "Cobranca_2_Razao_Social",
+        "Cobranca_3_Razao_Social",
+        "Agente de Recebimento_1_Razao_Social",
+    ],
+    "Consultora": [
+        "Consultora_1_Razao_Social",
+        "Consultora_2_Razao_Social",
+        "Consultora_3_Razao_Social",
+    ],
+    "Originador": [
+        "Originador_1_Razao_Social",
+        "Originador_2_Razao_Social",
+    ],
+    "Certificadora": [
+        "Certificadora_1_Razao_Social",
+    ],
+}
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def build_prest_servico() -> pd.DataFrame:
+    """
+    Constrói um DataFrame longo com uma linha por
+    (cnpj_tratado × Data_Posicao × tipo_prestador × prestador).
+
+    Colunas de saída
+    ----------------
+    Todas as colunas de build_principais_gestoras() MAIS:
+      - tipo_prestador : str  (ex: 'Agente de Cobrança')
+      - prestador      : str  (razão social normalizada em maiúsculas)
+
+    Regras
+    ------
+    - Colunas com múltiplas posições (_1_, _2_, _3_) são fundidas: cada
+      prestador não-nulo gera uma linha separada para o fundo.
+    - Strings vazias ou compostas apenas de espaços são descartadas.
+    - O nome do prestador é normalizado em maiúsculas e sem espaços extras.
+    """
+    df_principais = build_principais_gestoras()
+    df_resp       = load_responsaveis()   # indexado por cnpj_str
+
+    # Adicionar chave de join ao df_principais (cnpj_str → 14 dígitos)
+    df_base = df_principais.copy()
+    df_base["cnpj_str"] = (
+        df_base["cnpj_tratado"].astype(str).str.strip().str.zfill(14)
+    )
+
+    frames: list[pd.DataFrame] = []
+
+    for tipo, colunas in PRESTADOR_TIPOS.items():
+        # Selecionar apenas colunas presentes no df_resp
+        cols_presentes = [c for c in colunas if c in df_resp.columns]
+        if not cols_presentes:
+            continue
+
+        # Para cada coluna-posição gerar um mapa cnpj → prestador
+        for col in cols_presentes:
+            mapa = (
+                df_resp[col]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .replace("", np.nan)
+                .dropna()
+            )
+            # Descartar strings só de espaços
+            mapa = mapa[mapa.str.len() > 0]
+            if mapa.empty:
+                continue
+
+            # df_base já tem cnpj_str como coluna
+            df_col = df_base.copy()
+            df_col["prestador"] = df_col["cnpj_str"].map(mapa)
+            df_col = df_col[df_col["prestador"].notna()].copy()
+            df_col["prestador"]     = df_col["prestador"].str.upper().str.strip()
+            df_col["tipo_prestador"] = tipo
+            frames.append(df_col)
+
+    if not frames:
+        # Retorna DataFrame vazio com as colunas esperadas
+        return df_base.assign(tipo_prestador=pd.Series(dtype=str),
+                              prestador=pd.Series(dtype=str)).iloc[0:0]
+
+    df_long = pd.concat(frames, ignore_index=True)
+
+    # Eliminar duplicatas exatas (mesmo fundo × período × tipo × prestador)
+    df_long = df_long.drop_duplicates(
+        subset=["cnpj_tratado", "Data_Posicao", "tipo_prestador", "prestador"]
+    )
+
+    df_long.drop(columns=["cnpj_str"], inplace=True, errors="ignore")
+    return df_long
 
 
 # ─── Filter helpers ────────────────────────────────────────────────────────────

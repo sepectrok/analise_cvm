@@ -10,7 +10,7 @@ import pandas as pd
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, stats_table
 from components.charts import histogram_taxa, boxplot_by_group, violin_taxa, scatter_two_taxas, multi_box_taxas
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, get_available_taxas
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, get_available_taxas, weighted_mean
 
 load_css()
 df_full = build_df_fidc()
@@ -62,7 +62,8 @@ with tab3:
                 rows.append({
                     "Taxa": TAXA_LABELS.get(col, col),
                     "N Fundos": len(s),
-                    "Média (%)": round(s.mean(), 4),
+                    "Média Pond. PL (%)": round(weighted_mean(df[df[col].notna()], col), 4),
+                    "Média Simples (%)": round(s.mean(), 4),
                     "Mediana (%)": round(s.median(), 4),
                     "Desvio (%)": round(s.std(), 4),
                     "Mín (%)": round(s.min(), 4),

@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import institutional_header, render_executive_kpis, render_general_kpis
 from components.charts import bar_foco_comparativo, bar_ranking, boxplot_solis_vs_mercado, donut_market_share_solis
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, weighted_mean_by_group
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 load_css()
@@ -158,11 +158,10 @@ else:
 
 df_ent = df.dropna(subset=[ent_col, tax_col])
 if not df_ent.empty:
-    df_agg = (
-        df_ent.groupby(ent_col)
-        .agg({tax_col: "mean"})
-        .reset_index()
-    )
+    # Média ponderada pelo PL_CVM: fundos maiores pesam mais na média de taxa
+    taxa_pond = weighted_mean_by_group(df_ent, ent_col, tax_col).reset_index()
+    taxa_pond.columns = [ent_col, tax_col]
+    df_agg = taxa_pond
 
     col1, col2 = st.columns([1, 4])
     with col1:

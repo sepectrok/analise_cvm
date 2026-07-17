@@ -12,7 +12,7 @@ import plotly.graph_objects as go
 from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header
 from components.charts import boxplot_by_group, PALETTE, _base_layout
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS, weighted_mean, weighted_mean_by_group
 from utils.formatters import fmt_pct
 import plotly.colors as pc
 
@@ -27,13 +27,18 @@ taxa_cols_avail = [c for c in TAXA_COLS if c in df.columns and df[c].notna().sum
 
 df_seg = (
     df.groupby("foco_atuacao")[taxa_cols_avail + ["cnpj_tratado"]]
-    .agg({**{c: ["mean", "median", "count"] for c in taxa_cols_avail}, "cnpj_tratado": "count"})
+    .agg({**{c: ["median", "count"] for c in taxa_cols_avail}, "cnpj_tratado": "count"})
     .reset_index()
 )
 # Flatten cols
 df_seg.columns = ["foco_atuacao"] + [
-    f"{c}_{s}" for c in taxa_cols_avail for s in ["mean", "median", "count"]
+    f"{c}_{s}" for c in taxa_cols_avail for s in ["median", "count"]
 ] + ["n_fundos"]
+
+# Adicionar média ponderada pelo PL_CVM como coluna principal de taxa média
+for _tc in taxa_cols_avail:
+    _pond = weighted_mean_by_group(df, "foco_atuacao", _tc)
+    df_seg[f"{_tc}_mean"] = df_seg["foco_atuacao"].map(_pond)
 
 st.markdown("---")
 tab1, tab2, tab4, tab5, tab_cvnp, tab_aging = st.tabs(["Taxas por Segmento", "Boxplot", "Inadimplência", "Subordinação", "CVNP", "Aging"])
@@ -61,10 +66,11 @@ with tab1:
         df_plot = df_seg.dropna(subset=[mean_col]).sort_values(mean_col, ascending=True)
         focos = df_plot["foco_atuacao"].tolist()
 
-        solis_means   = df_solis.groupby("foco_atuacao")[col_sel].mean().to_dict()
-        mercado_means = df_mercado.groupby("foco_atuacao")[col_sel].mean().to_dict()
-        mkt_mean      = df_mercado[col_sel].mean()
-        solis_mean    = df_solis[col_sel].mean()
+        # Médias ponderadas pelo PL_CVM por foco de atuação
+        solis_means   = weighted_mean_by_group(df_solis,   "foco_atuacao", col_sel).to_dict()
+        mercado_means = weighted_mean_by_group(df_mercado, "foco_atuacao", col_sel).to_dict()
+        mkt_mean      = weighted_mean(df_mercado, col_sel)
+        solis_mean    = weighted_mean(df_solis, col_sel)
 
         n_cats  = len(focos)
         chart_h = max(700, n_cats * 55 + 120)
@@ -138,7 +144,8 @@ with tab1:
 
     else:
         df_plot  = df_seg.dropna(subset=[mean_col]).sort_values(mean_col, ascending=True)
-        mkt_mean = df[col_sel].mean()
+        # Média ponderada global para a linha de referência
+        mkt_mean = weighted_mean(df, col_sel)
 
         n_cats  = len(df_plot)
         chart_h = max(500, n_cats * 38 + 80)

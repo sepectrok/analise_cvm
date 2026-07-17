@@ -13,7 +13,7 @@ from components.sidebar import load_css, render_sidebar, apply_sidebar_filters
 from components.metrics_cards import page_header, kpi_card, insight_card
 from components.charts import bar_ranking, heatmap_entity_taxa, histogram_taxa, PALETTE, _base_layout
 from components.tables import render_entity_ranking
-from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS, add_subordinacao_ponderada
+from utils.data_loader import build_df_fidc, TAXA_LABELS, TAXA_COLS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS, add_subordinacao_ponderada, weighted_mean, weighted_mean_by_group
 from utils.formatters import fmt_pct
 
 load_css()
@@ -79,6 +79,12 @@ df_agg = (
     .sort_values("n_fundos", ascending=False)
 )
 
+# Substituir médias simples de taxas por médias ponderadas pelo PL_CVM
+for _tc in taxa_cols_avail:
+    _pond = weighted_mean_by_group(df_ges, "gestor", _tc)
+    if not _pond.empty:
+        df_agg[_tc] = df_agg["gestor"].map(_pond)
+
 # Subordinação ponderada: Σ(SB) / Σ(SB+MZ+SR) por gestor
 df_agg = add_subordinacao_ponderada(df_agg, df_ges, groupby_col="gestor")
 
@@ -107,8 +113,9 @@ c1, c2, c3, c4 = st.columns(4)
 c1.metric("Gestores", df_agg["gestor"].nunique())
 c2.metric("Total FIDCs", int(df_agg["n_fundos"].sum()))
 if "taxa_gestao" in df_agg.columns:
-    wa = (df_agg["taxa_gestao"].fillna(0) * df_agg["n_fundos"]).sum() / df_agg["n_fundos"].sum()
-    c3.metric("Taxa Gestão Pond.", f"{wa:.3f}%")
+    # Ponderado pelo PL total de cada gestor
+    wa = weighted_mean(df_ges, "taxa_gestao")
+    c3.metric("Taxa Gestão Pond. por PL", f"{wa:.3f}%")
     top_ges = df_agg.dropna(subset=["taxa_gestao"]).nlargest(1, "taxa_gestao").iloc[0]
     c4.metric("Maior Taxa Gestão", fmt_pct(top_ges["taxa_gestao"]),
               delta=f"↑ {top_ges['gestor'][:25]}", delta_color="inverse")

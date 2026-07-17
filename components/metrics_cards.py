@@ -5,7 +5,7 @@ Paleta e gradientes fiéis ao site solisinvestimentos.com.br
 import numpy as np
 import pandas as pd
 import streamlit as st
-from utils.data_loader import TAXA_COLS, TAXA_LABELS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS
+from utils.data_loader import TAXA_COLS, TAXA_LABELS, CVNP_COLS, CVNP_LABELS, AGING_COLS, AGING_LABELS, weighted_mean
 from utils.formatters import fmt_pct, fmt_num
 
 
@@ -91,11 +91,11 @@ def render_executive_kpis(df_solis: pd.DataFrame, df_mercado: pd.DataFrame):
     n_solis   = len(df_solis)
     n_mercado = len(df_mercado)
 
-    med_gestao_solis   = df_solis["taxa_gestao"].mean()   if "taxa_gestao"   in df_solis.columns   else np.nan
-    med_gestao_mercado = df_mercado["taxa_gestao"].mean() if "taxa_gestao"   in df_mercado.columns else np.nan
+    med_gestao_solis   = weighted_mean(df_solis,   "taxa_gestao")   if "taxa_gestao"   in df_solis.columns   else np.nan
+    med_gestao_mercado = weighted_mean(df_mercado, "taxa_gestao")   if "taxa_gestao"   in df_mercado.columns else np.nan
 
-    med_perf_solis   = df_solis["taxa_performance"].mean()   if "taxa_performance" in df_solis.columns   else np.nan
-    med_perf_mercado = df_mercado["taxa_performance"].mean() if "taxa_performance" in df_mercado.columns else np.nan
+    med_perf_solis   = weighted_mean(df_solis,   "taxa_performance") if "taxa_performance" in df_solis.columns   else np.nan
+    med_perf_mercado = weighted_mean(df_mercado, "taxa_performance") if "taxa_performance" in df_mercado.columns else np.nan
 
     med_inad_solis = np.nan
     if "PDD" in df_solis.columns and "DC" in df_solis.columns:
@@ -223,8 +223,8 @@ def render_general_kpis(df: pd.DataFrame):
     ges_col  = df["taxa_gestao"]        if "taxa_gestao"        in df.columns else pd.Series(dtype=float)
     inad_col = df["taxa_inadimplencia"] if "taxa_inadimplencia" in df.columns else pd.Series(dtype=float)
 
-    med_adm  = adm_col.mean()
-    med_ges  = ges_col.mean()
+    med_adm  = weighted_mean(df, "taxa_administracao") if "taxa_administracao" in df.columns else np.nan
+    med_ges  = weighted_mean(df, "taxa_gestao")        if "taxa_gestao"        in df.columns else np.nan
 
     med_inad = np.nan
     if "PDD" in df.columns and "DC" in df.columns:
@@ -261,8 +261,8 @@ def render_general_kpis(df: pd.DataFrame):
         kpi_card("FIDCs Analisados",       str(n_fundos),      f"{n_focos} segmentos", card_class="kpi-market"),
         kpi_card("Administradores",        str(n_adm),         "entidades únicas",     card_class="kpi-market"),
         kpi_card("Gestores",               str(n_ges),         "entidades únicas",     card_class="kpi-market"),
-        kpi_card("Média Adm.",             fmt_pct(med_adm),   f"mediana: {fmt_pct(adm_col.median())}", card_class="kpi-market"),
-        kpi_card("Média Gestão",           fmt_pct(med_ges),   f"mediana: {fmt_pct(ges_col.median())}", card_class="kpi-market"),
+        kpi_card("Média Adm.",             fmt_pct(med_adm),   f"mediana: {fmt_pct(adm_col.median())} · pond. PL", card_class="kpi-market"),
+        kpi_card("Média Gestão",           fmt_pct(med_ges),   f"mediana: {fmt_pct(ges_col.median())} · pond. PL", card_class="kpi-market"),
         kpi_card("PDD Médio / Fundo",       fmt_aum(med_pdd),       "Provisão — Média", card_class="kpi-market"),
         kpi_card("Inadimplência Méd. (PDD/DC)", fmt_pct(med_inad), f"mediana: {fmt_pct(inad_col.median())}", card_class="kpi-market"),
         kpi_card("Subordinação Jr.",        fmt_pct(med_sub_jr),    "Ponderada",        card_class="kpi-market"),
