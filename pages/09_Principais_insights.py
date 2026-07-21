@@ -69,8 +69,8 @@ gestora_sel = st.selectbox(
 
 df_gest  = df[df["Nome_Gestora"] == gestora_sel]
 df_resto = df[df["Nome_Gestora"] != gestora_sel]
-df_grupo = df  # todas as principais (para médias de referência)
-
+#df_grupo = df  # todas as principais (para médias de referência)
+df_grupo = df_resto.copy()
 # ══════════════════════════════════════════════════════════════════════════════
 # ABAS PRINCIPAIS
 # ══════════════════════════════════════════════════════════════════════════════
@@ -127,7 +127,7 @@ with tab_visao:
     g_cvnp     = df_gest["CVNP"].sum()  if "CVNP"  in df_gest.columns else 0
     g_aging    = df_gest["Aging"].sum() if "Aging" in df_gest.columns else 0
 
-    # Médias do grupo (todas as principais) — ponderadas pelo PL_CVM
+    # Médias do grupo externo a gestora selecionada (todas as principais) — ponderadas pelo PL_CVM
     r_pl       = df_grupo["Valor_PL"].sum()   if "Valor_PL" in df_grupo.columns else 0
     r_n        = len(df_grupo)
     r_gest     = weighted_mean(df_grupo, "taxa_gestao")        if "taxa_gestao"        in df_grupo.columns else np.nan
